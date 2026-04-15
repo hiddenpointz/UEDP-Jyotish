@@ -1,858 +1,1717 @@
-// ============================================================
-// UEDP V4 ENGINE — G.S. Ramesh Kumar Protocol
-// Fused with Surya Siddhanta & Swiss Ephemeris approximations
-// ============================================================
+/**
+ * UEDP v5 — Jyotisha Intelligence Engine
+ * G S Ramesh Kumar — Universal Dynamics Emergence Protocol v5
+ *
+ * Classical sources:
+ *   Surya Siddhanta       — planetary positions, ayanamsa, hora
+ *   Phaladeepika          — dignity, strength, yoga, dosha rules
+ *   BPHS                  — house analysis, dasha, shadbala
+ *   Muhurta Chintamani    — muhurta, hora election
+ *   Atharva Veda          — parihara, dosha remedies
+ *
+ * UEDP v5 core:
+ *   Ω = Ψ · e^(−λ·Iseq)
+ *   E*(t) = E(t) · (1 + λ·M(t))
+ *   Hora UEDP = Ω_hora · W_hora(t) · T_hora(t)
+ */
+
+// ═══════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════
+
+export const OMEGA_CRIT = 1 / Math.E; // 0.36788
+
+export const RASHIS = [
+  "Mesha","Vrishabha","Mithuna","Karka","Simha","Kanya",
+  "Tula","Vrishchika","Dhanu","Makara","Kumbha","Meena"
+];
+export const RASHI_EN = [
+  "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+  "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+];
+export const NAKSHATRAS = [
+  "Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
+  "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni","Uttara Phalguni",
+  "Hasta","Chitra","Swati","Vishakha","Anuradha","Jyeshtha",
+  "Moola","Purva Ashadha","Uttara Ashadha","Shravana","Dhanishtha","Shatabhisha",
+  "Purva Bhadrapada","Uttara Bhadrapada","Revati"
+];
+export const NAK_LORDS = [
+  "Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury",
+  "Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury",
+  "Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury"
+];
+export const DASHA_SEQ = ["Ketu","Venus","Sun","Moon","Mars","Rahu","Jupiter","Saturn","Mercury"];
+export const DASHA_YEARS: Record<string,number> = {
+  Ketu:7,Venus:20,Sun:6,Moon:10,Mars:7,Rahu:18,Jupiter:16,Saturn:19,Mercury:17
+};
+export const RASHI_LORD: Record<string,string> = {
+  Mesha:"Mars",Vrishabha:"Venus",Mithuna:"Mercury",Karka:"Moon",
+  Simha:"Sun",Kanya:"Mercury",Tula:"Venus",Vrishchika:"Mars",
+  Dhanu:"Jupiter",Makara:"Saturn",Kumbha:"Saturn",Meena:"Jupiter",
+  Aries:"Mars",Taurus:"Venus",Gemini:"Mercury",Cancer:"Moon",
+  Leo:"Sun",Virgo:"Mercury",Libra:"Venus",Scorpio:"Mars",
+  Sagittarius:"Jupiter",Capricorn:"Saturn",Aquarius:"Saturn",Pisces:"Jupiter",
+};
+export const EXALTATION: Record<string,string> = {
+  Sun:"Aries",Moon:"Taurus",Mars:"Capricorn",Mercury:"Virgo",
+  Jupiter:"Cancer",Venus:"Pisces",Saturn:"Libra",Rahu:"Gemini",Ketu:"Sagittarius"
+};
+export const DEBILITATION: Record<string,string> = {
+  Sun:"Libra",Moon:"Scorpio",Mars:"Cancer",Mercury:"Pisces",
+  Jupiter:"Capricorn",Venus:"Virgo",Saturn:"Aries",Rahu:"Sagittarius",Ketu:"Gemini"
+};
+export const OWN_SIGN: Record<string,string[]> = {
+  Sun:["Leo"],Moon:["Cancer"],Mars:["Aries","Scorpio"],
+  Mercury:["Gemini","Virgo"],Jupiter:["Sagittarius","Pisces"],
+  Venus:["Taurus","Libra"],Saturn:["Capricorn","Aquarius"]
+};
+export const MOOLATRIKONA: Record<string,string> = {
+  Sun:"Leo",Moon:"Taurus",Mars:"Aries",Mercury:"Virgo",
+  Jupiter:"Sagittarius",Venus:"Libra",Saturn:"Aquarius"
+};
+const NATURAL_FRIENDS: Record<string,{f:string[],e:string[]}> = {
+  Sun:   {f:["Moon","Mars","Jupiter"],      e:["Venus","Saturn"]},
+  Moon:  {f:["Sun","Mercury"],              e:[]},
+  Mars:  {f:["Sun","Moon","Jupiter"],       e:["Mercury"]},
+  Mercury:{f:["Sun","Venus"],               e:["Moon"]},
+  Jupiter:{f:["Sun","Moon","Mars"],         e:["Mercury","Venus"]},
+  Venus: {f:["Mercury","Saturn"],           e:["Sun","Moon"]},
+  Saturn:{f:["Mercury","Venus"],            e:["Sun","Moon","Mars"]},
+  Rahu:  {f:["Venus","Saturn"],             e:["Sun","Moon","Mars"]},
+  Ketu:  {f:["Mars","Venus","Saturn"],      e:["Sun","Moon"]},
+};
+
+// Planet symbols
+export const GLYPH: Record<string,string> = {
+  Sun:"☉",Moon:"☽",Mars:"♂",Mercury:"☿",Jupiter:"♃",
+  Venus:"♀",Saturn:"♄",Rahu:"☊",Ketu:"☋"
+};
+
+// Hora planet sequence (Chaldean order: Saturn → Jupiter → Mars → Sun → Venus → Mercury → Moon)
+// Each day starts with day-lord. Horas cycle through 7 planets.
+const HORA_CHALDEAN = ["Saturn","Jupiter","Mars","Sun","Venus","Mercury","Moon"];
+const DAY_LORDS = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"]; // Sun=0(Sunday)
+
+// ═══════════════════════════════════════════
+// TYPES
+// ═══════════════════════════════════════════
 
 export interface BirthData {
-  day: number;
-  month: number;
-  year: number;
-  hour: number;
-  minute: number;
-  second: number;
-  latitude: number;
-  longitude: number;
-  timezone: number; // offset in hours e.g. +5.5
   name: string;
-  gender: "male" | "female" | "other";
+  day: number; month: number; year: number;
+  hour: number; minute: number; second: number;
+  latitude: number; longitude: number;
+  timezone: number;
+  gender?: "male"|"female"|"other";
+  place?: string;
+  ayanamsa?: string;
 }
 
-export interface PlanetPosition {
-  name: string;
-  symbol: string;
-  longitude: number; // 0–360
-  sign: number; // 0–11
-  signName: string;
-  degree: number; // within sign
-  house: number; // 1–12
-  isRetrograde: boolean;
-  speed: number; // degrees/day
-  nakshatra: string;
-  nakshatraPada: number;
+export interface PlanetData {
+  rashi: string; sign: string;
+  house: number; degree: number; degInSign: number;
+  nakshatra: string; nakshatraLord: string; pada: number;
+  dignity: string; retrograde: boolean; combust: boolean;
+  rashiLord: string; speed: number;
 }
 
-export interface UEDPState {
-  label: string;
-  value: number;
-  delta: number;
-  direction: -1 | 0 | 1;
+export interface UEDPCore {
+  omega: number; iseq: number; psi: number; lambda: number;
+  omegaCrit: number; isStable: boolean; metp: number;
+  reversals: number; A: number; B: number; C: number;
+  direction: string; rMod: number; latentEmergence: number;
+  atRatio: number; atInterpretation: string;
+  fpred: number; leMulti: number; ffinal: number;
+  systemState: string;
 }
 
-export interface UEDPMetrics {
-  states: UEDPState[];
-  iseq: number; // Instability sequence
-  omega: number; // Coherence field Ω
-  psi: number; // Base amplitude
-  lambda: number; // Decay constant
-  omegaCritical: number; // 1/e ≈ 0.368
-  isStable: boolean;
-  metp: number; // Minimum Effort Transition Path
-  reversals: number;
+export interface HoraData {
+  horaNumber: number;        // 1–24
+  horaLord: string;          // planet ruling this hora
+  horaSign: string;          // Simha(Sun-hora) or Karka(Moon-hora) per Surya Siddhanta
+  horaType: "Solar"|"Lunar"; // odd signs = Solar, even = Lunar
+  startTime: string;         // HH:MM IST
+  endTime: string;
+  isCurrentHora: boolean;
+  uedpScore: number;         // Ω × functional weight
+  omegaHora: number;         // local Ω for this hora
+  horaEffect: string;        // classical prediction text
+  horaRecommendation: string;
+  domains: string[];         // what activities are good
+  warningDomains: string[];  // what to avoid
+  // UEDP fields
+  horaInstability: number;
+  horaCoherence: number;
+  horaKarmaLoad: number;     // Γ cost
+  horaResilience: number;    // Λ resilience
+  horaEmergenceForce: number;// φ
+  dasha_activation: number;  // dasha weight for this hora lord
 }
 
-export interface HouseData {
-  house: number;
-  sign: number;
-  signName: string;
-  degree: number;
-  lord: string;
-  lordSymbol: string;
+export interface HoraUEDPAnalysis {
+  date: string;
+  dayLord: string;
+  sunrise: string;
+  timezone: number;
+  horas: HoraData[];
+  bestHoras: HoraData[];
+  avoidHoras: HoraData[];
+  dailyOmega: number;
+  dailyCoherence: string;
+  uedpSummary: string;
+  // Multi-day
+  weeklyPattern?: HoraWeekPattern[];
 }
 
-export interface HoroscopeData {
-  planets: PlanetPosition[];
-  houses: HouseData[];
-  ascendant: number;
-  ascendantSign: string;
-  ascendantDegree: number;
-  julianDay: number;
-  localSiderealTime: number;
-  ayanamsa: number;
-  uedp: UEDPMetrics;
+export interface HoraWeekPattern {
+  day: string; dayLord: string;
+  avgOmega: number; bestDomain: string;
+  peakHora: string; uedpGrade: string;
 }
 
-export interface Prediction {
-  domain: string;
-  icon: string;
-  period: string;
-  startDate: string;
-  endDate: string;
-  intensity: "high" | "medium" | "low" | "critical";
-  omegaAtPeriod: number;
-  summary: string;
-  details: string[];
-  planetaryTriggers: string[];
-  karmaNote?: string;
+export interface ChartData {
+  status: string;
+  name: string; place: string;
+  latitude: number; longitude: number;
+  lagna: { rashi:string; sign:string; degree:number; degInSign:number; nakshatra:string; pada:number; rashiLord:string; };
+  planets: Record<string, PlanetData>;
+  panchang: PanchangData;
+  ayanamsaUsed: string; ayanamsaValue: number;
+  allAyanamsas: Record<string,number>;
+  strengths: Record<string, StrengthData>;
+  shadbala: Record<string, ShadbalaData>;
+  ashtakavarga: Record<string, AshtakavargaData>;
+  bhavas: BhavaData[];
+  dasha: DashaBlock;
+  doshas: DoshaResult[];
+  yogas: YogaResult[];
+  medical: MedicalData;
+  political: PoliticalData;
+  vargas: Record<string, VargaData>;
+  predictions: Record<string, PredictionScore>;
+  uedp: UEDPCore;
+  uedpTimeline: UEDPTimelinePoint[];
+  horaAnalysis: HoraUEDPAnalysis;
+  marriage: MarriageAnalysis;
+  children: ChildAnalysis;
+  directions: DirectionAnalysis;
+  confidence: ConfidenceData;
+  input: Record<string,unknown>;
 }
 
-export interface Dosha {
-  name: string;
-  present: boolean;
-  severity: "severe" | "moderate" | "mild" | "none";
-  planets: string[];
-  houses: number[];
-  effects: string[];
-  isLatent: boolean;
-  source: string; // e.g. Surya Siddhanta / Atharva Veda
+export interface PanchangData {
+  tithi: { number:number; name:string; paksha:string; tithi_in_paksha:number; progress:number; };
+  vara: string; nakshatra: string; nakshatraLord: string;
+  yoga: string; karana: string;
+  moonSign: string; sunSign: string; lagna: string;
 }
 
-export interface Parihara {
-  dosha: string;
-  remedy: string;
-  ritual: string;
-  mantra: string;
-  deity: string;
-  daan: string;
-  timing: string;
-  karmaBarrier?: string; // why it may not work
-  karmaOverride?: string; // how to overcome karma
-  source: string;
+export interface StrengthData {
+  dignity: { state:string; multiplier:number; };
+  houseStrength: number; combust: boolean; retrograde: boolean;
+  totalScore: number;
 }
 
-// ============================================================
-// CONSTANTS
-// ============================================================
-const SIGNS = [
-  "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
-];
+export interface ShadbalaData {
+  sthanaBala: number; digBala: number; kalaBala: number;
+  chestaBala: number; naisargikaBala: number; drikBala: number;
+  totalRupas: number; strengthGrade: string;
+  ishtaPhala: number; kashtaPhala: number;
+}
 
-const SIGN_LORDS: Record<string, string> = {
-  Aries: "Mars", Taurus: "Venus", Gemini: "Mercury", Cancer: "Moon",
-  Leo: "Sun", Virgo: "Mercury", Libra: "Venus", Scorpio: "Mars",
-  Sagittarius: "Jupiter", Capricorn: "Saturn", Aquarius: "Saturn", Pisces: "Jupiter"
-};
+export interface AshtakavargaData {
+  bav: number[]; total: number;
+  transitScoreCurrent: number; strongSigns: string[];
+}
 
-const SIGN_LORD_SYMBOLS: Record<string, string> = {
-  Mars: "♂", Venus: "♀", Mercury: "☿", Moon: "☽", Sun: "☉",
-  Jupiter: "♃", Saturn: "♄", Rahu: "☊", Ketu: "☋"
-};
+export interface BhavaData {
+  bhava: number; name: string; rashi: string;
+  lord: string; lordHouse: number; lordDignity: string;
+  planets: string[]; signification: string;
+}
 
-const NAKSHATRAS = [
-  "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
-  "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
-  "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
-  "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishtha",
-  "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
-];
+export interface DashaBlock {
+  birthNakshatra: string; nakshatraLord: string;
+  current: { mahadasha:string; mahaStart:string; mahaEnds:string; antardasha:string; antarEnds:string; pratyantara:string; };
+  elapsedYears: number; remainingYears: number;
+  dashas: DashaEntry[];
+  antardashas: AntarEntry[];
+}
 
-const PLANET_SYMBOLS: Record<string, string> = {
-  Sun: "☉", Moon: "☽", Mars: "♂", Mercury: "☿", Jupiter: "♃",
-  Venus: "♀", Saturn: "♄", Rahu: "☊", Ketu: "☋"
-};
+export interface DashaEntry {
+  lord: string; start: string; end: string; years: number; complete: boolean;
+  antardashas?: AntarEntry[];
+}
+export interface AntarEntry {
+  lord: string; start: string; end: string; years: number;
+}
 
-const E = Math.E;
-const OMEGA_CRITICAL = 1 / E; // ≈ 0.3679
+export interface DoshaResult {
+  name: string; alias: string; strength: number; level: string;
+  effects: string[]; remedies: {r:string}[];
+  placement: string; lifeAreas: string[];
+}
 
-// ============================================================
-// STEP 1: Julian Day Number (from Surya Siddhanta approach)
-// ============================================================
-export function toJulianDay(data: BirthData): number {
-  const { day, month, year, hour, minute, second, timezone } = data;
-  const utHours = hour + minute / 60 + second / 3600 - timezone;
-  let Y = year;
-  let M = month;
-  const D = day;
+export interface YogaResult {
+  yoga: string; type: string; strength: number;
+  planets: string; description: string; electionRelevance: string;
+}
+
+export interface MedicalData {
+  healthIndex: number; healthGrade: string;
+  tridosha: { Vata:number; Pitta:number; Kapha:number; dominant:string; remedies:string[]; };
+  planetaryVulnerabilities: VulnerabilityData[];
+  currentDashaHealth: { lord:string; risk:string; bodyFocus:string[]; };
+}
+
+export interface VulnerabilityData {
+  planet:string; organs:string[]; diseases:string[];
+  vulnerabilityScore:number; reason:string;
+}
+
+export interface PoliticalData {
+  leadership: { overallLeadershipIndex:number; grade:string; dimensions:Record<string,number>; keyFactors:string[]; };
+  powerYogas: YogaResult[];
+  career: { dashamsha_lagna:string; tenth_house_lord:string; tenth_house_sign:string; tenth_house_planets:string[]; career_strength:string; lord_dignity:string; };
+}
+
+export interface VargaData {
+  lagna: { rashi:string; sign:string; degInSign:number; nakshatra:string; rashiLord:string; };
+  planets: Record<string,{ rashi:string; sign:string; house:number; dignity:string; degInSign:number; nakshatra:string; }>;
+  tenthLord?: string; tenthLordDignity?: string; tenthHousePlanets?: string[];
+}
+
+export interface PredictionScore {
+  score: number; domain: string; icon: string;
+}
+
+export interface MarriageAnalysis {
+  h7Rashi: string; h7Lord: string; h7LordDignity: string; h7LordHouse: number; h7Planets: string[];
+  spouseQualities: string;
+  marriageType: string; typeConfidence: number;
+  loveScore: number; arrangedScore: number; liveinScore: number;
+  loveReasons: string[]; arrangedReasons: string[]; liveinReasons: string[];
+  successScore: number; successAnalysis: string; successPct: number;
+  separationIndicators: string[]; secondMarriageRisk: boolean;
+  timingCurrent: string; marriageDashaActive: boolean;
+  upcomingDashas: {period:string;from:string;to:string;note:string;}[];
+  remedies: string[]; advisory: string;
+  d9Validation: { h7LordInD9:string; h7LordD9Dig:string; venusD9Dig:string; d9Factor:number; d9Note:string; };
+}
+
+export interface ChildAnalysis {
+  h5Rashi:string; h5Lord:string; h5LordDignity:string; h5LordHouse:number; h5Planets:string[];
+  jupiterHouse:number; jupiterDignity:string; jupiterStrong:boolean; putraKaraka:string;
+  childScore:number; likelihood:string; likelihoodPct:number; afflictions:string[];
+  genderTendency:string; genderBreakdown:{ maleScore:number; femaleScore:number; malePct:number; femalePct:number; confidence:string; d7H5Rashi:string; };
+  countTendency:string; healthTendencies:string[]; mentalHealthNotes:string[];
+  timingCurrent:string; upcomingChildDashas:{period:string;from:string;to:string;}[];
+  remedies:string[]; advisory:string;
+}
+
+export interface DirectionAnalysis {
+  lagnaLord:string; lagnaRashi:string; strongestPlanet:string; h10Lord:string;
+  primaryDirections:{direction:string;weight:number;layers:string[];reasons:string[];}[];
+  secondaryDirections:{direction:string;weight:number;layers:string[];reasons:string[];}[];
+  purposeDirections:Record<string,string>;
+  inauspiciousDirections:{direction:string;planet:string;house:number;reason:string;}[];
+  remedies:string[]; summary:string;
+}
+
+export interface ConfidenceData {
+  overall:number; mode:string;
+  ephemeris:{score:number;grade:string;note:string};
+  ayanamsaAgreement:{score:number;grade:string;note:string};
+  boundaryStability:{score:number;grade:string;note:string};
+  interpretationCertainty:{score:number;grade:string;note:string};
+}
+
+export interface UEDPTimelinePoint {
+  year:number; month:number; date:string;
+  omega:number; isStable:boolean;
+  iseq:number; events:string[];
+  domainScores:Record<string,number>;
+  classification:"PEAK"|"TROUGH"|"NEUTRAL";
+  confidence:number;
+}
+
+// ═══════════════════════════════════════════
+// ASTRONOMICAL CORE (Surya Siddhanta approach)
+// ═══════════════════════════════════════════
+
+export function toJulianDay(d:BirthData): number {
+  const utHours = d.hour + d.minute/60 + d.second/3600 - d.timezone;
+  let Y = d.year, M = d.month;
   if (M <= 2) { Y -= 1; M += 12; }
-  const A = Math.floor(Y / 100);
-  const B = 2 - A + Math.floor(A / 4);
-  return Math.floor(365.25 * (Y + 4716)) + Math.floor(30.6001 * (M + 1)) + D + B - 1524.5 + utHours / 24;
+  const A = Math.floor(Y/100);
+  const B = 2 - A + Math.floor(A/4);
+  return Math.floor(365.25*(Y+4716)) + Math.floor(30.6001*(M+1)) + d.day + B - 1524.5 + utHours/24;
 }
 
-// ============================================================
-// STEP 2: Ayanamsa (Lahiri — standard Vedic)
-// ============================================================
 export function getLahiriAyanamsa(jd: number): number {
-  const T = (jd - 2451545.0) / 36525.0; // Julian centuries from J2000
+  const T = (jd - 2451545.0) / 36525.0;
   return 23.85 + 0.013972 * (jd - 2415020.5) / 365.25;
-  // Simplified Lahiri; precise formula:
-  // return 23.452294 + 0.0130125 * T + 0.00000164 * T * T;
 }
 
-// ============================================================
-// STEP 3: Kepler's Equation (UEDP embedded iteration tracker)
-// ============================================================
-export function solveKepler(M: number, e: number): { E: number; iseqKepler: number } {
-  let Eval = M;
-  let iseqKepler = 0;
-  const iterations: number[] = [Eval];
-  for (let i = 0; i < 50; i++) {
-    const Enew = M + e * Math.sin(Eval);
-    iseqKepler += Math.abs(Enew - Eval);
-    Eval = Enew;
-    iterations.push(Eval);
-    if (Math.abs(Enew - iterations[i]) < 1e-10) break;
-  }
-  return { E: Eval, iseqKepler };
-}
-
-// ============================================================
-// STEP 4: Planet Positions (Keplerian approximations for 9 Vedic grahas)
-// Uses mean orbital elements referred to J2000.0
-// ============================================================
-interface OrbitalElements {
-  L0: number; // mean longitude deg
-  Ldot: number; // deg/day
-  e: number; // eccentricity
-  a: number; // semi-major axis AU
-  i: number; // inclination
-  omega: number; // argument of perihelion
-  Omega: number; // longitude of ascending node
-}
-
-const ORBITAL_ELEMENTS: Record<string, OrbitalElements> = {
-  Sun: { L0: 280.46646, Ldot: 0.9856474, e: 0.016708634, a: 1.0, i: 0.00005, omega: 102.93735, Omega: 0 },
-  Moon: { L0: 218.3165, Ldot: 13.1763966, e: 0.0549, a: 0.00257, i: 5.1454, omega: 318.51, Omega: 125.0445 },
-  Mars: { L0: 355.433, Ldot: 0.5240207, e: 0.0934, a: 1.524, i: 1.850, omega: 286.502, Omega: 49.558 },
-  Mercury: { L0: 252.251, Ldot: 4.0923344, e: 0.2056, a: 0.387, i: 7.005, omega: 29.124, Omega: 48.331 },
-  Jupiter: { L0: 34.396, Ldot: 0.0830853, e: 0.0489, a: 5.203, i: 1.303, omega: 273.867, Omega: 100.464 },
-  Venus: { L0: 181.979, Ldot: 1.6021302, e: 0.0068, a: 0.723, i: 3.395, omega: 54.884, Omega: 76.680 },
-  Saturn: { L0: 50.077, Ldot: 0.0334442, e: 0.0565, a: 9.537, i: 2.485, omega: 339.392, Omega: 113.665 },
+const AYANAMSA_OFFSETS: Record<string,number> = {
+  lahiri: 0, raman: -0.984, kp: 0.0015, yukteshwar: 2.33,
+  true_chitrapaksha: -0.05, jn_bhasin: 0.25
 };
 
-function getPlanetTropicalLongitude(planet: string, jd: number): { lon: number; speed: number; retrograde: boolean } {
-  const d = jd - 2451545.0; // days from J2000
-  const el = ORBITAL_ELEMENTS[planet];
-  if (!el) return { lon: 0, speed: 0, retrograde: false };
-
-  const L = (el.L0 + el.Ldot * d) % 360;
-  const M_mean = (L - el.omega + 360) % 360;
-  const M_rad = (M_mean * Math.PI) / 180;
-  const { E } = solveKepler(M_rad, el.e);
-  const nu = 2 * Math.atan2(
-    Math.sqrt(1 + el.e) * Math.sin(E / 2),
-    Math.sqrt(1 - el.e) * Math.cos(E / 2)
-  );
-  const nu_deg = ((nu * 180) / Math.PI + 360) % 360;
-  const lon = (nu_deg + el.omega) % 360;
-
-  // Speed approximation
-  const speed = el.Ldot * (1 - el.e * Math.cos(E));
-  const retrograde = speed < 0;
-
-  return { lon, speed, retrograde };
+export function getAllAyanamsas(jd: number): Record<string,number> {
+  const base = getLahiriAyanamsa(jd);
+  const result: Record<string,number> = {};
+  for (const [k,off] of Object.entries(AYANAMSA_OFFSETS)) {
+    result[k] = Math.round((base + off) * 1e6) / 1e6;
+  }
+  return result;
 }
 
-// Rahu/Ketu: mean nodes (simplified)
-function getRahuLongitude(jd: number): number {
+// Keplerian orbital elements (J2000.0 epoch)
+const ORBITAL: Record<string,{L0:number;Ldot:number;e:number;a:number;omega:number}> = {
+  Sun:     {L0:280.46646,Ldot:0.9856474,   e:0.01670,a:1.0,   omega:102.93735},
+  Moon:    {L0:218.3165, Ldot:13.176396,   e:0.0549, a:0.00257,omega:318.51},
+  Mars:    {L0:355.433,  Ldot:0.5240207,   e:0.0934, a:1.524,  omega:286.502},
+  Mercury: {L0:252.251,  Ldot:4.0923344,   e:0.2056, a:0.387,  omega:29.124},
+  Jupiter: {L0:34.396,   Ldot:0.0830853,   e:0.0489, a:5.203,  omega:273.867},
+  Venus:   {L0:181.979,  Ldot:1.6021302,   e:0.0068, a:0.723,  omega:54.884},
+  Saturn:  {L0:50.077,   Ldot:0.0334442,   e:0.0565, a:9.537,  omega:339.392},
+};
+
+function solveKepler(M: number, e: number): number {
+  let E = M;
+  for (let i = 0; i < 50; i++) {
+    const dE = M + e*Math.sin(E) - E;
+    E += dE;
+    if (Math.abs(dE) < 1e-10) break;
+  }
+  return E;
+}
+
+function planetTropLon(planet: string, jd: number): {lon:number;speed:number;retro:boolean} {
   const d = jd - 2451545.0;
-  return (125.0445 - 0.052954 * d + 360) % 360;
+  const el = ORBITAL[planet];
+  if (!el) return {lon:0,speed:0,retro:false};
+  const L = ((el.L0 + el.Ldot*d) % 360 + 360) % 360;
+  const Mrad = ((L - el.omega + 360) % 360) * Math.PI/180;
+  const E = solveKepler(Mrad, el.e);
+  const nu = 2*Math.atan2(Math.sqrt(1+el.e)*Math.sin(E/2), Math.sqrt(1-el.e)*Math.cos(E/2));
+  const lon = (((nu*180/Math.PI + el.omega) % 360) + 360) % 360;
+  const speed = el.Ldot * (1 - el.e*Math.cos(E));
+  return {lon, speed, retro: speed < 0};
 }
 
-// ============================================================
-// STEP 5: Local Sidereal Time + Ascendant
-// ============================================================
+function getRahuLon(jd: number): number {
+  const d = jd - 2451545.0;
+  return ((125.0445 - 0.052954*d) % 360 + 360) % 360;
+}
+
 function getGST(jd: number): number {
-  const T = (jd - 2451545.0) / 36525.0;
-  const GST = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T;
-  return ((GST % 360) + 360) % 360;
+  return (((280.46061837 + 360.98564736629*(jd-2451545.0)) % 360) + 360) % 360;
 }
 
-function getLST(jd: number, longitude: number): number {
-  return (getGST(jd) + longitude) % 360;
+function getLST(jd: number, lon: number): number {
+  return (getGST(jd) + lon) % 360;
 }
 
-function getAscendant(lst_deg: number, latitude: number): number {
-  const epsilon = 23.4392911; // Earth axial tilt
-  const eps_rad = (epsilon * Math.PI) / 180;
-  const lst_rad = (lst_deg * Math.PI) / 180;
-  const lat_rad = (latitude * Math.PI) / 180;
-  const asc_rad = Math.atan2(
-    Math.cos(lst_rad),
-    -(Math.sin(lst_rad) * Math.cos(eps_rad) + Math.tan(lat_rad) * Math.sin(eps_rad))
-  );
-  return ((asc_rad * 180) / Math.PI + 360) % 360;
+function getAscendant(jd: number, lat: number, lon: number): number {
+  const lst = getLST(jd, lon);
+  const eps = 23.4392911 * Math.PI/180;
+  const lstR = lst * Math.PI/180;
+  const latR = lat * Math.PI/180;
+  const asc = Math.atan2(Math.cos(lstR), -(Math.sin(lstR)*Math.cos(eps) + Math.tan(latR)*Math.sin(eps)));
+  return ((asc * 180/Math.PI) % 360 + 360) % 360;
 }
 
-// ============================================================
-// STEP 6: Sidereal Conversion + Nakshatra
-// ============================================================
 function toSidereal(tropLon: number, ayanamsa: number): number {
   return ((tropLon - ayanamsa) % 360 + 360) % 360;
 }
 
-function getNakshatra(lon: number): { nakshatra: string; pada: number } {
-  const idx = Math.floor((lon / 360) * 27);
-  const pada = Math.floor(((lon % (360 / 27)) / (360 / 27 / 4))) + 1;
-  return { nakshatra: NAKSHATRAS[idx % 27], pada: Math.min(pada, 4) };
+function lonToRashi(lon: number): string { return RASHIS[Math.floor(lon/30) % 12]; }
+function lonToSign(lon: number): string  { return RASHI_EN[Math.floor(lon/30) % 12]; }
+function lonToNak(lon: number): {name:string;lord:string;pada:number;index:number} {
+  const span = 360/27;
+  const idx = Math.floor(lon/span) % 27;
+  const pada = Math.floor((lon % span) / (span/4)) + 1;
+  return {name:NAKSHATRAS[idx], lord:NAK_LORDS[idx], pada:Math.min(pada,4), index:idx};
+}
+function houseFromLon(pLon:number, ascLon:number): number {
+  return Math.floor(((pLon - ascLon + 360) % 360) / 30) + 1;
+}
+function degInSign(lon:number): number { return lon % 30; }
+
+function getDignity(planet:string, sign:string): string {
+  const r = RASHI_EN.includes(sign) ? sign : (RASHI_EN[RASHIS.indexOf(sign)] || sign);
+  if (EXALTATION[planet] === r)    return "exalted";
+  if (DEBILITATION[planet] === r)  return "debilitated";
+  if (MOOLATRIKONA[planet] === r)  return "moolatrikona";
+  if ((OWN_SIGN[planet]||[]).includes(r)) return "own";
+  const lord = RASHI_LORD[r] || "";
+  const fn = NATURAL_FRIENDS[planet] || {f:[],e:[]};
+  if (fn.f.includes(lord)) return "friend";
+  if (fn.e.includes(lord)) return "enemy";
+  return "neutral";
 }
 
-// ============================================================
-// STEP 7: House System (Whole Sign — standard Vedic)
-// ============================================================
-function getHouses(ascSidereal: number): HouseData[] {
-  const ascSign = Math.floor(ascSidereal / 30);
-  return Array.from({ length: 12 }, (_, i) => {
-    const sign = (ascSign + i) % 12;
-    const lord = SIGN_LORDS[SIGNS[sign]];
+const COMBUST_ORBS: Record<string,number> = {Moon:12,Mars:17,Mercury:14,Jupiter:11,Venus:10,Saturn:15};
+function isCombust(planet:string, pLon:number, sunLon:number): boolean {
+  const orb = COMBUST_ORBS[planet] || 0;
+  if (!orb) return false;
+  const d = Math.abs(pLon - sunLon) % 360;
+  return Math.min(d, 360-d) < orb;
+}
+
+// ═══════════════════════════════════════════
+// UEDP v5 CORE MATH — G S Ramesh Kumar
+// ═══════════════════════════════════════════
+
+function computeUEDPCore(
+  x: number[],
+  alpha=0.4, beta=0.35, delta=0.25, eta=0.3, m=4
+): UEDPCore {
+  const N = x.length;
+  if (N === 0) return {omega:0,iseq:0,psi:0,lambda:1,omegaCrit:OMEGA_CRIT,
+    isStable:false,metp:0,reversals:0,A:0,B:0,C:0,direction:"",rMod:0,
+    latentEmergence:0,atRatio:0,atInterpretation:"",fpred:0,leMulti:0,ffinal:0,systemState:""};
+
+  // Segment-based hybrinear
+  const segSize = Math.max(1, Math.floor(N/m));
+  const segs: number[][] = [];
+  for (let i=0; i<N; i+=segSize) segs.push(x.slice(i, i+segSize));
+
+  let fpred = 0;
+  for (const seg of segs) {
+    const n = seg.length;
+    const deltas = seg.map((v,i) => i===0 ? v : v - seg[i-1]);
+    const dirs = deltas.map(d => d>0?1:d<0?-1:0);
+    const sumAbs = seg.reduce((s,v)=>s+Math.abs(v),0);
+    const Lm = dirs.reduce((s,d,i)=>s+d*seg[i],0) / (sumAbs || 1);
+    const absD = deltas.map(Math.abs);
+    const NLm = absD.reduce((s,v)=>s+v,0) / (absD.reduce((s,v)=>s+v,0) || 1);
+    const zeros = dirs.filter(d=>d===0).length;
+    const Hm = Math.tanh(n) * zeros / (zeros+1);
+    fpred += (n/N) * (alpha*Lm + beta*NLm + delta*Hm);
+  }
+
+  const oObs = x.reduce((s,v)=>s+v,0) / N;
+  const leMulti = oObs - fpred;
+  const ffinal = fpred + eta * leMulti;
+
+  // Instability sequence
+  const allDeltas = x.map((v,i) => i===0 ? 0 : v - x[i-1]);
+  const allDirs = allDeltas.map(d => d>0?1:d<0?-1:0);
+  const lmVals: number[] = [];
+  for (let i=0; i<segs.length; i++) {
+    const seg=segs[i], sumAbs=seg.reduce((s,v)=>s+Math.abs(v),0);
+    const dirs2=seg.map((v,j)=>j===0?0:v-seg[j-1]).map(d=>d>0?1:d<0?-1:0);
+    lmVals.push(dirs2.reduce((s,d,j)=>s+d*seg[j],0)/(sumAbs||1));
+  }
+  const meanL = lmVals.reduce((s,v)=>s+v,0)/lmVals.length;
+  const A = lmVals.reduce((s,v)=>s+(v-meanL)**2,0)/lmVals.length;
+  let Bv=0, Sv=0;
+  for (let i=1; i<allDirs.length; i++) {
+    Bv += 1 - allDirs[i]*allDirs[i-1];
+    if (allDirs[i]!==0 && allDirs[i-1]!==0 && allDirs[i]!==allDirs[i-1]) Sv++;
+  }
+  const B = Bv / Math.max(allDirs.length-1, 1);
+  const C = Sv / (Sv+1);
+  const iseq = alpha*A + 0.3*B + 0.3*C;
+  const omega = Math.exp(-iseq);
+  const isStable = omega >= OMEGA_CRIT;
+
+  const omSeries = x.map((_,t) => Math.exp(-iseq*(t+1)/N));
+  const metp = omSeries.reduce((s,o)=>s+Math.max(0,1-o),0);
+  const omegaMin = Math.min(...omSeries);
+  const omegaRef = 0.8;
+  const tau = omegaRef - omegaMin;
+  const Rmag = Math.abs(tau) / (omegaRef + 1e-9);
+  const signRsl = (tau>0 && omegaMin<OMEGA_CRIT) ? -1 : 1;
+  const rMod = signRsl * Rmag;
+  const dOmega = Math.max(omegaRef - omega, 1e-9);
+  const iCoh = Math.max(0, 1-iseq);
+  const phi = (iCoh * rMod) / dOmega;
+  const cHist = omSeries.reduce((s,o)=>s+Math.abs(o-omegaRef),0)/N;
+  const Lambda = (iCoh * rMod) / Math.max(cHist * omegaRef, 1e-9);
+  const Upsilon = Math.abs(rMod);
+  const oDebt = Math.max(OMEGA_CRIT - omega, 0);
+  const Gamma = (oDebt * Math.abs(leMulti)) / Math.max(Math.abs(rMod)+1e-9, 1e-9);
+  const AT = Upsilon * Math.abs(phi) / Math.max(iseq * Gamma, 1e-9);
+
+  return {
+    omega: Math.round(omega*1e6)/1e6,
+    iseq:  Math.round(iseq*1e6)/1e6,
+    psi: 1.0, lambda: 1.0,
+    omegaCrit: OMEGA_CRIT,
+    isStable, metp: Math.round(metp*1e4)/1e4,
+    reversals: Sv, A: Math.round(A*1e4)/1e4,
+    B: Math.round(B*1e4)/1e4, C: Math.round(C*1e4)/1e4,
+    direction: signRsl > 0 ? "Anados (Acceleratory)" : "Thanatos (Inhibitory)",
+    rMod: Math.round(rMod*1e6)/1e6,
+    latentEmergence: Math.round(leMulti*1e4)/1e4,
+    atRatio: Math.round(AT*1e4)/1e4,
+    atInterpretation: AT > 1 ? "Anados Dominant — Self-correcting, Generative Growth" : "Thanatos Dominant — Collapse / Inhibition / Stasis",
+    fpred: Math.round(fpred*1e4)/1e4,
+    leMulti: Math.round(leMulti*1e4)/1e4,
+    ffinal: Math.round(ffinal*1e4)/1e4,
+    systemState: isStable ? "Structured Dynamics" : "Excessive Instability",
+  };
+}
+
+// ═══════════════════════════════════════════
+// HORA ENGINE — UEDP v5 (Surya Siddhanta + UEDP)
+//
+// Classical basis: Surya Siddhanta, Muhurta Chintamani
+// Each planetary hour (hora) = 60 minutes exactly
+// Day divided into 24 horas starting at sunrise
+// First hora lord = day lord; then Chaldean order cycles
+// Surya Siddhanta: odd rashis (Sun-horas), even rashis (Moon-horas)
+//
+// UEDP extension:
+//   Ω_hora = e^(−λ · I_hora)
+//   I_hora computed from hora sequence scores × dasha activation × nakshatra transit
+//   E*(hora) = S_lord · W_dasha · T_transit · P_functional
+// ═══════════════════════════════════════════
+
+const HORA_EFFECTS: Record<string, {
+  effect:string; domains:string[]; warn:string[]; rec:string;
+}> = {
+  Sun: {
+    effect:"Authority, leadership, governance, vital energy peak",
+    domains:["Career","Government","Medical","Authority decisions","Public speaking","Gold/metals trade"],
+    warn:["Avoid starting journeys south","Avoid humbling requests"],
+    rec:"Best hora for: signing contracts with authorities, visiting officials, launching leadership-oriented ventures, health consultations"
+  },
+  Moon: {
+    effect:"Emotions, public, agriculture, liquids, creativity",
+    domains:["Public relations","Agriculture","Water-related","Creativity","Travel","Family"],
+    warn:["Avoid sharp confrontations","Avoid iron/weapons dealings"],
+    rec:"Best hora for: social meetings, creative work, travel, public-facing activities, working with mothers and children"
+  },
+  Mars: {
+    effect:"Courage, action, conflict, surgery, engineering",
+    domains:["Military","Police","Surgery","Construction","Sports","Property"],
+    warn:["Avoid marriage negotiations","Avoid signing of long-term agreements"],
+    rec:"Best hora for: physical work, surgery, starting construction, sports, legal battles requiring courage"
+  },
+  Mercury: {
+    effect:"Intelligence, trade, communication, education, accounts",
+    domains:["Business","Education","Writing","IT","Commerce","Accounts"],
+    warn:["Avoid emotional decisions","Avoid purely physical tasks"],
+    rec:"Best hora for: trade negotiations, studies, writing, signing commercial contracts, accounting, IT work"
+  },
+  Jupiter: {
+    effect:"Wisdom, dharma, prosperity, expansion, children",
+    domains:["Finance","Education","Religion","Philanthropy","Children","Foreign"],
+    warn:["Avoid mundane/low activities","Avoid conflict"],
+    rec:"Best hora for: financial investments, religious ceremonies, education, philanthropy, consulting elders"
+  },
+  Venus: {
+    effect:"Love, beauty, arts, luxury, partnerships, vehicles",
+    domains:["Marriage","Arts","Fashion","Entertainment","Vehicles","Diplomacy"],
+    warn:["Avoid conflict","Avoid harsh decisions"],
+    rec:"Best hora for: marriage proposals, artistic work, purchasing vehicles/luxury items, diplomatic negotiations, romance"
+  },
+  Saturn: {
+    effect:"Discipline, karma, delays, service, longevity, mining",
+    domains:["Long-term planning","Service","Agriculture","Research","Iron/coal"],
+    warn:["Avoid new beginnings","Avoid hasty decisions","Avoid medical procedures if possible"],
+    rec:"Best hora for: long-term planning, service-oriented work, research, disciplined study, karmic debt resolution"
+  },
+};
+
+const HORA_UEDP_WEIGHTS: Record<string,number> = {
+  Sun:1.2, Moon:1.0, Mars:1.1, Mercury:1.15, Jupiter:1.3, Venus:1.05, Saturn:0.85
+};
+
+const HORA_KARMA_LOAD: Record<string,number> = {
+  Sun:0.2, Moon:0.3, Mars:0.5, Mercury:0.15, Jupiter:0.1, Venus:0.25, Saturn:0.6
+};
+
+export function computeHoraAnalysis(
+  birth: BirthData,
+  dashaData: DashaBlock,
+  planets: Record<string,PlanetData>,
+  ayanamsa: number,
+  targetDate?: Date
+): HoraUEDPAnalysis {
+  const now = targetDate || new Date();
+  const dateStr = now.toISOString().slice(0,10);
+
+  // Day of week (0=Sun, 1=Mon, ... 6=Sat)
+  const dow = now.getDay(); // 0=Sunday
+  const dayLord = DAY_LORDS[dow];
+
+  // Sunrise approximation: use standard 6:00 AM IST (simplified; true computation needs ephemeris)
+  // For precise sunrise: use astronomy formula. Here we approximate at 6:00 AM local time.
+  const sunriseMins = 360; // 6:00 AM in minutes from midnight
+
+  // Find starting hora lord index in Chaldean order
+  const dayLordIdx = HORA_CHALDEAN.indexOf(dayLord);
+
+  // Current dasha info
+  const curDasha = dashaData.current;
+  const DASHA_WEIGHTS: Record<string,number> = {MD:1.0, AD:0.6, PD:0.3};
+
+  function getDashaActivation(lord: string): number {
+    let w = 0;
+    if (curDasha.mahadasha === lord) w += DASHA_WEIGHTS.MD;
+    if (curDasha.antardasha === lord) w += DASHA_WEIGHTS.AD;
+    if (curDasha.pratyantara === lord) w += DASHA_WEIGHTS.PD;
+    return Math.max(0.05, w);
+  }
+
+  // Lagna rashi for functional nature
+  const lagnaRashi = planets.Sun?.rashi || "Mesha"; // Use ascendant from chart
+  const FUNCTIONAL_NATURE: Record<string,Record<string,number>> = {
+    Mesha:    {Sun:1,Moon:1,Mars:1,Jupiter:1,Mercury:-1,Venus:-1,Saturn:-1,Rahu:-1,Ketu:1},
+    Vrishabha:{Venus:1,Mercury:1,Saturn:1,Moon:1,Sun:-1,Mars:-1,Jupiter:-1,Rahu:-1,Ketu:1},
+    Mithuna:  {Mercury:1,Venus:1,Saturn:1,Rahu:1,Sun:-1,Moon:-1,Mars:-1,Jupiter:-1,Ketu:-1},
+    Karka:    {Moon:1,Mars:1,Jupiter:1,Mercury:-1,Venus:-1,Saturn:-1,Sun:0,Rahu:-1,Ketu:1},
+    Simha:    {Sun:1,Mars:1,Jupiter:1,Mercury:-1,Venus:-1,Saturn:-1,Moon:0,Rahu:-1,Ketu:1},
+    Kanya:    {Mercury:1,Venus:1,Rahu:1,Moon:-1,Mars:-1,Jupiter:-1,Sun:-1,Saturn:1,Ketu:-1},
+    Tula:     {Mercury:1,Venus:1,Saturn:1,Rahu:1,Sun:-1,Moon:-1,Jupiter:-1,Mars:-1,Ketu:-1},
+    Vrishchika:{Moon:1,Jupiter:1,Sun:1,Mars:1,Mercury:-1,Venus:-1,Saturn:-1,Rahu:-1,Ketu:1},
+    Dhanu:    {Sun:1,Mars:1,Jupiter:1,Moon:1,Mercury:-1,Venus:-1,Saturn:-1,Rahu:-1,Ketu:1},
+    Makara:   {Venus:1,Mercury:1,Saturn:1,Rahu:1,Moon:-1,Mars:-1,Jupiter:-1,Sun:-1,Ketu:-1},
+    Kumbha:   {Venus:1,Saturn:1,Rahu:1,Moon:-1,Mars:-1,Jupiter:-1,Sun:-1,Mercury:1,Ketu:-1},
+    Meena:    {Moon:1,Mars:1,Jupiter:1,Ketu:1,Mercury:-1,Venus:-1,Saturn:-1,Sun:0,Rahu:-1},
+  };
+
+  function getFunctionalPolarity(lord: string): number {
+    const fn = FUNCTIONAL_NATURE[lagnaRashi] || {};
+    return fn[lord] !== undefined ? fn[lord] : 0;
+  }
+
+  // Build horas for the day
+  const horas: HoraData[] = [];
+  const currentMins = now.getHours()*60 + now.getMinutes();
+
+  for (let h=0; h<24; h++) {
+    const horaLordIdx = (dayLordIdx + h) % 7;
+    const horaLord = HORA_CHALDEAN[horaLordIdx];
+
+    // Hora sign (Surya Siddhanta): odd hora numbers (1,3,5...) = Simha (Sun-hora = Solar)
+    // even hora numbers (2,4,6...) = Karka (Moon-hora = Lunar)
+    const horaNum = h + 1;
+    const horaType: "Solar"|"Lunar" = horaNum % 2 === 1 ? "Solar" : "Lunar";
+    const horaSign = horaType === "Solar" ? "Simha" : "Karka";
+
+    // Time window
+    const startMins = sunriseMins + h*60;
+    const endMins = startMins + 60;
+    const toTime = (m:number) => {
+      const wrapped = ((m % 1440) + 1440) % 1440;
+      return `${String(Math.floor(wrapped/60)).padStart(2,'0')}:${String(wrapped%60).padStart(2,'0')}`;
+    };
+
+    const isCurrentHora = currentMins >= startMins % 1440 && currentMins < endMins % 1440;
+
+    // UEDP computation for this hora
+    const dashaAct = getDashaActivation(horaLord);
+    const funcPol  = getFunctionalPolarity(horaLord);
+    const karmaW   = HORA_KARMA_LOAD[horaLord] || 0.3;
+    const horaW    = HORA_UEDP_WEIGHTS[horaLord] || 1.0;
+
+    // Hora sequence for UEDP input
+    // Build x-sequence from hora lord's natal planet strength + dasha activation
+    const pData = planets[horaLord];
+    const digScore = pData ? {exalted:0.9,moolatrikona:0.8,own:0.7,friend:0.6,neutral:0.5,enemy:0.3,debilitated:0.2}[pData.dignity as string] || 0.5 : 0.5;
+    const houseScore = pData ? ({1:1.0,4:1.0,7:1.0,10:1.0,5:0.95,9:0.95,2:0.7,11:0.7,3:0.6,6:0.4,8:0.3,12:0.35}[pData.house as number] || 0.5) : 0.5;
+
+    // Hora position in day creates phase oscillation — models diurnal coherence
+    const phase = Math.cos(h * Math.PI / 12); // peaks at noon
+    const x_hora = [digScore, houseScore, dashaAct, horaW, Math.max(0, funcPol*0.3 + 0.5), Math.max(0.1, 0.5 - karmaW*0.3), Math.abs(phase)*0.5 + 0.5];
+
+    const horaUEDP = computeUEDPCore(x_hora, 0.4, 0.35, 0.25, 0.3, 2);
+    const omegaHora = horaUEDP.omega;
+    const uedpScore = Math.round(omegaHora * horaW * (1 + dashaAct*0.5) * 100) / 100;
+
+    // Karma load: Γ = (Ω_debt × |LE|) / |R_mod|
+    const horaKarmaLoad = Math.round(karmaW * (1 - omegaHora) * 100) / 100;
+    const horaResilience = Math.round(horaUEDP.atRatio * 0.5 * 100) / 100;
+    const horaEmergenceForce = Math.round(Math.abs(horaUEDP.latentEmergence) * 100) / 100;
+    const horaInstability = Math.round(horaUEDP.iseq * 100) / 100;
+    const horaCoherence = Math.round(omegaHora * 100) / 100;
+
+    const eff = HORA_EFFECTS[horaLord];
+    horas.push({
+      horaNumber: horaNum,
+      horaLord, horaSign, horaType,
+      startTime: toTime(startMins),
+      endTime: toTime(endMins),
+      isCurrentHora,
+      uedpScore, omegaHora: horaCoherence,
+      horaEffect: eff?.effect || "",
+      horaRecommendation: eff?.rec || "",
+      domains: eff?.domains || [],
+      warningDomains: eff?.warn || [],
+      horaInstability, horaCoherence,
+      horaKarmaLoad, horaResilience, horaEmergenceForce,
+      dasha_activation: Math.round(dashaAct*100)/100,
+    });
+  }
+
+  // Best / avoid horas by UEDP score
+  const sorted = [...horas].sort((a,b) => b.uedpScore - a.uedpScore);
+  const bestHoras = sorted.slice(0,4);
+  const avoidHoras = sorted.slice(-3).reverse();
+
+  // Daily omega = mean of all hora Ω values
+  const dailyOmega = Math.round(horas.reduce((s,h)=>s+h.omegaHora,0)/horas.length * 1e4)/1e4;
+  const dailyCoherence = dailyOmega >= OMEGA_CRIT
+    ? `STABLE (Ω=${dailyOmega.toFixed(4)} ≥ 1/e)`
+    : `BELOW CRITICAL (Ω=${dailyOmega.toFixed(4)} < 1/e)`;
+
+  // Weekly pattern (7-day scan, same time each day)
+  const WEEK_DAYS = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const weeklyPattern: HoraWeekPattern[] = WEEK_DAYS.map((day,i) => {
+    const wDayLord = DAY_LORDS[i];
+    const wDayLordIdx = HORA_CHALDEAN.indexOf(wDayLord);
+    const avgO = Array.from({length:24},(_,h2)=>{
+      const hlIdx = (wDayLordIdx + h2) % 7;
+      const hl = HORA_CHALDEAN[hlIdx];
+      const pd2 = planets[hl];
+      const ds2 = pd2 ? ({exalted:0.9,moolatrikona:0.8,own:0.7,friend:0.6,neutral:0.5,enemy:0.3,debilitated:0.2}[pd2.dignity as string]||0.5) : 0.5;
+      const da2 = getDashaActivation(hl);
+      return Math.exp(-(0.4*Math.abs(ds2-0.5) + 0.3*Math.abs(da2-0.5)));
+    }).reduce((s,v)=>s+v,0)/24;
+
+    // Best domain for this day
+    const peakHoraIdx = HORA_CHALDEAN[(wDayLordIdx + 0) % 7]; // first hora = day lord
+    const bestDomains = (HORA_EFFECTS[wDayLord]?.domains||[]).slice(0,2).join(", ");
+
     return {
-      house: i + 1,
-      sign,
-      signName: SIGNS[sign],
-      degree: ascSidereal % 30,
-      lord,
-      lordSymbol: SIGN_LORD_SYMBOLS[lord] || "?",
+      day, dayLord: wDayLord,
+      avgOmega: Math.round(avgO*1e4)/1e4,
+      bestDomain: bestDomains,
+      peakHora: `${wDayLord} (${toTime(sunriseMins)})`,
+      uedpGrade: avgO>=0.6?"HIGH":avgO>=OMEGA_CRIT?"STABLE":"CAUTION"
+    };
+  });
+
+  return {
+    date: dateStr,
+    dayLord, sunrise: toTime(sunriseMins),
+    timezone: birth.timezone,
+    horas, bestHoras, avoidHoras,
+    dailyOmega, dailyCoherence,
+    uedpSummary: `UEDP v5 Hora Analysis — ${dateStr}. Day lord: ${dayLord}. Daily Ω=${dailyOmega.toFixed(4)}. ${bestHoras[0]?.horaLord || '—'} hora is most coherent today. G S Ramesh Kumar protocol.`,
+    weeklyPattern,
+  };
+}
+
+// ═══════════════════════════════════════════
+// PANCHANG
+// ═══════════════════════════════════════════
+
+const TITHI_NAMES = ["Pratipada","Dwitiya","Tritiya","Chaturthi","Panchami","Shashthi","Saptami","Ashtami","Navami","Dashami","Ekadashi","Dwadashi","Trayodashi","Chaturdashi","Purnima","Pratipada","Dwitiya","Tritiya","Chaturthi","Panchami","Shashthi","Saptami","Ashtami","Navami","Dashami","Ekadashi","Dwadashi","Trayodashi","Chaturdashi","Amavasya"];
+const VARA_NAMES  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const YOGA_NAMES  = ["Vishkumbha","Priti","Ayushman","Saubhagya","Shobhana","Atiganda","Sukarma","Dhriti","Shoola","Ganda","Vriddhi","Dhruva","Vyaghata","Harshana","Vajra","Siddhi","Vyatipata","Variyan","Parigha","Shiva","Siddha","Sadhya","Shubha","Shukla","Brahma","Indra","Vaidhriti"];
+const KARANA_NAMES= ["Bava","Balava","Kaulava","Taitila","Garaja","Vanija","Vishti","Bhadra","Shakuni","Chatushpada","Naga"];
+
+function computePanchang(jd:number, moonLon:number, sunLon:number, ascLon:number, ayanamsa:string): PanchangData {
+  const tDiff = (moonLon - sunLon + 360) % 360;
+  const tNum = Math.floor(tDiff/12) + 1;
+  const tName = TITHI_NAMES[tNum-1];
+  const paksha = tNum <= 15 ? "Shukla" : "Krishna";
+  const tProg = (tDiff % 12) / 12;
+  const vara = VARA_NAMES[Math.floor(jd+1.5) % 7];
+  const moonNak = lonToNak(moonLon);
+  const yNum = Math.floor((sunLon + moonLon) % 360 / (360/27)) % 27;
+  const yoga = YOGA_NAMES[yNum];
+  const kNum = Math.floor((moonLon - sunLon + 360) % 360 / 6) % 11;
+  const karana = KARANA_NAMES[kNum];
+  return {
+    tithi:{number:tNum, name:tName, paksha, tithi_in_paksha:tNum<=15?tNum:tNum-15, progress:Math.round(tProg*1e4)/1e4},
+    vara, nakshatra:moonNak.name, nakshatraLord:moonNak.lord,
+    yoga, karana,
+    moonSign:lonToRashi(moonLon), sunSign:lonToRashi(sunLon), lagna:lonToRashi(ascLon),
+  };
+}
+
+// ═══════════════════════════════════════════
+// PLANET TABLE
+// ═══════════════════════════════════════════
+
+function buildPlanetTable(rawPos: Record<string,{lon:number;speed:number;retro:boolean}>, ascLon:number, sunLon:number): Record<string,PlanetData> {
+  const result: Record<string,PlanetData> = {};
+  for (const [pname, pdata] of Object.entries(rawPos)) {
+    const lon = pdata.lon;
+    const rashi = lonToRashi(lon);
+    const sign  = lonToSign(lon);
+    const house = houseFromLon(lon, ascLon);
+    const nak   = lonToNak(lon);
+    const dig   = getDignity(pname, sign);
+    const comb  = isCombust(pname, lon, sunLon);
+    result[pname] = {
+      rashi, sign, house,
+      degree: Math.round(lon*1e4)/1e4,
+      degInSign: Math.round(degInSign(lon)*1e4)/1e4,
+      nakshatra: nak.name, nakshatraLord: nak.lord, pada: nak.pada,
+      dignity: dig, retrograde: pdata.retro, combust: comb,
+      rashiLord: RASHI_LORD[rashi] || "",
+      speed: Math.round(pdata.speed*1e4)/1e4,
+    };
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════
+// SHADBALA (Phaladeepika Ch.12)
+// ═══════════════════════════════════════════
+
+const NAISARGIKA_BALA: Record<string,number> = {Sun:60,Moon:51.4,Venus:42.8,Jupiter:34.3,Mercury:25.7,Mars:17.1,Saturn:8.6};
+const DIGBALA_HOUSE: Record<string,number> = {Sun:10,Mars:10,Saturn:7,Jupiter:1,Mercury:1,Moon:4,Venus:4};
+
+function computeShadbala(planets: Record<string,PlanetData>): Record<string,ShadbalaData> {
+  const result: Record<string,ShadbalaData> = {};
+  const DIG_STHAN: Record<string,number> = {exalted:60,moolatrikona:45,own:30,friend:22,neutral:15,enemy:10,debilitated:5};
+  for (const pname of ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"]) {
+    const p = planets[pname];
+    if (!p) continue;
+    const sthana = DIG_STHAN[p.dignity] || 15;
+    const dh = DIGBALA_HOUSE[pname] || 7;
+    const digB = Math.max(5, 60 - Math.abs(p.house - dh)*7);
+    const kala = 30;
+    const chesta = p.retrograde ? 45 : 25;
+    const nais = NAISARGIKA_BALA[pname] || 25;
+    const drik = 15;
+    const total = sthana + digB + kala + chesta + nais + drik;
+    const rupas = Math.round(total/60*100)/100;
+    const grade = rupas>=3.5?"Strong":rupas>=2.5?"Moderate":"Weak";
+    const ishta = Math.round(Math.min(60, sthana*0.8+nais*0.2)*10)/10;
+    result[pname] = {
+      sthanaBala:Math.round(sthana*10)/10, digBala:Math.round(digB*10)/10,
+      kalaBala:Math.round(kala*10)/10, chestaBala:Math.round(chesta*10)/10,
+      naisargikaBala:Math.round(nais*10)/10, drikBala:Math.round(drik*10)/10,
+      totalRupas:rupas, strengthGrade:grade,
+      ishtaPhala:ishta, kashtaPhala:Math.round((60-ishta)*10)/10,
+    };
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════
+// STRENGTHS
+// ═══════════════════════════════════════════
+
+const DIG_MULT: Record<string,number> = {exalted:1.0,moolatrikona:0.85,own:0.75,friend:0.65,neutral:0.55,enemy:0.35,debilitated:0.2};
+const HOUSE_STR: Record<number,number> = {1:1.0,4:1.0,7:1.0,10:1.0,5:0.95,9:0.95,2:0.7,11:0.7,3:0.6,6:0.4,8:0.25,12:0.3};
+
+function computeStrengths(planets: Record<string,PlanetData>): Record<string,StrengthData> {
+  const result: Record<string,StrengthData> = {};
+  for (const [pname, p] of Object.entries(planets)) {
+    const dm = DIG_MULT[p.dignity] || 0.55;
+    const hs = HOUSE_STR[p.house] || 0.5;
+    let score = dm*35 + hs*25 + 15;
+    if (p.combust)    score *= 0.65;
+    if (p.retrograde) score = Math.min(score*1.1, 95);
+    result[pname] = {
+      dignity:{state:p.dignity, multiplier:dm},
+      houseStrength:Math.round(hs*100*10)/10,
+      combust:p.combust, retrograde:p.retrograde,
+      totalScore:Math.round(Math.min(100,Math.max(0,score))*100)/100,
+    };
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════
+// ASHTAKAVARGA
+// ═══════════════════════════════════════════
+
+function computeAshtakavarga(planets: Record<string,PlanetData>, lagnaRashi:string): Record<string,AshtakavargaData> {
+  const av: Record<string,AshtakavargaData> = {};
+  const lagnaIdx = RASHIS.indexOf(lagnaRashi) || 0;
+  const byHouse: Record<number,number> = {};
+  for (let i=1;i<=12;i++) byHouse[i]=28;
+
+  const DIG_BOOST: Record<string,number> = {exalted:6,moolatrikona:4,own:3,friend:2,neutral:0,enemy:-2,debilitated:-4};
+  for (const pname of ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"]) {
+    const p = planets[pname];
+    if (!p) continue;
+    const pIdx = RASHIS.indexOf(p.rashi) >= 0 ? RASHIS.indexOf(p.rashi) : 0;
+    byHouse[p.house] = Math.max(0,Math.min(56,(byHouse[p.house]||28) + (DIG_BOOST[p.dignity]||0)));
+    const bav = Array.from({length:12},(_,i2) => {
+      const diff = (i2 - pIdx + 12) % 12;
+      return diff===0?7:([4,8].includes(diff)?5:[3,6,9].includes(diff)?4:[2,5,11].includes(diff)?3:2);
+    });
+    const ts = bav[(p.house-1)%12];
+    const best = bav.map((s,i2)=>({s,r:RASHIS[(pIdx+i2)%12]})).filter(x=>x.s>=5).map(x=>x.r);
+    av[pname] = {bav, total:bav.reduce((s,v)=>s+v,0), transitScoreCurrent:ts, strongSigns:best};
+  }
+  const sarva = Array.from({length:12},(_,i)=>Math.max(0,Math.min(56,byHouse[i+1]||28)));
+  const maxH = sarva.indexOf(Math.max(...sarva))+1;
+  const minH = sarva.indexOf(Math.min(...sarva))+1;
+  av.sarva = {bav:sarva,total:sarva.reduce((s,v)=>s+v,0),transitScoreCurrent:sarva[0],strongSigns:[RASHIS[(lagnaIdx+maxH-1)%12]]};
+  return av;
+}
+
+// ═══════════════════════════════════════════
+// BHAVAS
+// ═══════════════════════════════════════════
+
+const HOUSE_NAMES = ["Lagna","Dhana","Sahaja","Sukha","Putra","Ari","Kalatra","Mrityu","Dharma","Karma","Labha","Vyaya"];
+const HOUSE_SIGNIF = [
+  "Self, body, vitality, personality, appearance",
+  "Wealth, family, speech, food, accumulated assets",
+  "Courage, siblings, communication, short travel, creativity",
+  "Mother, home, happiness, property, education, vehicles",
+  "Children, intelligence, creativity, speculation, past merit",
+  "Enemies, disease, debt, service, litigation, daily routine",
+  "Marriage, partner, business partnerships, open enemies, travel abroad",
+  "Longevity, transformation, occult, inheritance, hidden matters",
+  "Father, fortune, dharma, long travel, guru, higher learning",
+  "Career, status, government, authority, public reputation, fame",
+  "Gains, income, elder siblings, fulfilment, social network",
+  "Loss, expenditure, liberation, foreign lands, spiritual growth",
+];
+
+function computeBhavas(planets: Record<string,PlanetData>, ascLon:number): BhavaData[] {
+  const lagnaR = lonToRashi(ascLon);
+  const lagnaIdx = RASHIS.indexOf(lagnaR) || 0;
+  const houseMap: Record<number,string[]> = {};
+  for (const [pn,p] of Object.entries(planets)) {
+    if (!houseMap[p.house]) houseMap[p.house] = [];
+    houseMap[p.house].push(pn);
+  }
+  return Array.from({length:12},(_,i) => {
+    const rashi = RASHIS[(lagnaIdx+i)%12];
+    const lord  = RASHI_LORD[rashi] || "";
+    const lordData = planets[lord];
+    return {
+      bhava:i+1, name:HOUSE_NAMES[i], rashi, lord,
+      lordHouse: lordData?.house || 0,
+      lordDignity: lordData?.dignity || "neutral",
+      planets: houseMap[i+1] || [],
+      signification: HOUSE_SIGNIF[i],
     };
   });
 }
 
-function getPlanetHouse(planetSign: number, ascSign: number): number {
-  return ((planetSign - ascSign + 12) % 12) + 1;
+// ═══════════════════════════════════════════
+// VIMSHOTTARI DASHA
+// ═══════════════════════════════════════════
+
+function computeDashas(birthDate: Date, moonLon: number): DashaEntry[] {
+  const nak = lonToNak(moonLon);
+  const nakLord = nak.lord;
+  const span = 360/27;
+  const elapsedFrac = (moonLon % span) / span;
+  const lordIdx = DASHA_SEQ.indexOf(nakLord);
+  const dashas: DashaEntry[] = [];
+  let curDt = new Date(birthDate);
+  const remFrac = 1 - elapsedFrac;
+  const firstY = DASHA_YEARS[nakLord] * remFrac;
+  let endDt = new Date(curDt.getTime() + firstY*365.25*24*3600*1000);
+  dashas.push({lord:nakLord,start:fmt(curDt),end:fmt(endDt),years:Math.round(firstY*1e3)/1e3,complete:false});
+  curDt = endDt;
+  for (let i=1;i<9;i++) {
+    const lord = DASHA_SEQ[(lordIdx+i)%9];
+    const yrs = DASHA_YEARS[lord];
+    endDt = new Date(curDt.getTime() + yrs*365.25*24*3600*1000);
+    dashas.push({lord,start:fmt(curDt),end:fmt(endDt),years:yrs,complete:true});
+    curDt = endDt;
+  }
+  return dashas;
 }
 
-// ============================================================
-// UEDP V4 CORE — Compute Instability & Coherence
-// ============================================================
-export function computeUEDP(states: UEDPState[], alpha = 0.5, beta = 0.3, gamma = 0.2): UEDPMetrics {
-  const deltas = states.map(s => s.delta);
-  const directions = states.map(s => s.direction);
+function fmt(d:Date): string { return d.toISOString().slice(0,10); }
 
-  let reversals = 0;
-  for (let i = 1; i < directions.length; i++) {
-    if (directions[i] !== 0 && directions[i - 1] !== 0 && directions[i] !== directions[i - 1]) {
-      reversals++;
+function computeAntardasha(mahaLord:string, mahaStart:string, mahaEnd:string): AntarEntry[] {
+  const mahaY = DASHA_YEARS[mahaLord];
+  let curDt = new Date(mahaStart);
+  const mlIdx = DASHA_SEQ.indexOf(mahaLord);
+  return DASHA_SEQ.map((_,i) => {
+    const sl = DASHA_SEQ[(mlIdx+i)%9];
+    const days = Math.floor(mahaY * DASHA_YEARS[sl] / 120 * 365.25);
+    const e = new Date(curDt.getTime() + days*24*3600*1000);
+    const entry: AntarEntry = {lord:sl,start:fmt(curDt),end:fmt(e),years:Math.round(mahaY*DASHA_YEARS[sl]/120*1e3)/1e3};
+    curDt = e;
+    return entry;
+  });
+}
+
+function buildDashaBlock(dashas:DashaEntry[], birthDt:Date, moonLon:number): DashaBlock {
+  const now = new Date();
+  const today = fmt(now);
+  const moonNak = lonToNak(moonLon);
+  const cur = dashas.find(d => d.start <= today && today <= d.end) || dashas[dashas.length-1];
+  const antars = computeAntardasha(cur.lord, cur.start, cur.end);
+  // Add antardashas to each dasha
+  for (const d of dashas) {
+    d.antardashas = computeAntardasha(d.lord, d.start, d.end);
+  }
+  const curA = antars.find(a => a.start <= today && today <= a.end) || antars[antars.length-1];
+  const curAntars2 = computeAntardasha(curA.lord, curA.start, curA.end);
+  const curP = curAntars2.find(p => p.start <= today && today <= p.end) || curAntars2[0];
+  const mahaS = new Date(cur.start);
+  const mahaE = new Date(cur.end);
+  const elapY = Math.round((now.getTime()-mahaS.getTime())/365.25/24/3600/1000*100)/100;
+  const remY  = Math.round((mahaE.getTime()-now.getTime())/365.25/24/3600/1000*100)/100;
+  return {
+    birthNakshatra:moonNak.name, nakshatraLord:moonNak.lord,
+    current:{mahadasha:cur.lord,mahaStart:cur.start,mahaEnds:cur.end,antardasha:curA.lord,antarEnds:curA.end,pratyantara:curP?.lord||""},
+    elapsedYears:elapY, remainingYears:remY,
+    dashas, antardashas:antars,
+  };
+}
+
+// ═══════════════════════════════════════════
+// DOSHA DETECTION (Surya Siddhanta + BPHS)
+// ═══════════════════════════════════════════
+
+const DOSHA_DB: Record<string,{alias:string;level:string;effects:string[];remedies:{r:string}[]}> = {
+  Manglik:{alias:"Kuja Dosha",level:"High",effects:["Delays/friction in marriage","Relationship conflicts","Partner health risk"],remedies:[{r:"Kumbha Vivah (marry a pot/peepal tree first)"},{r:"Perform Mangal Puja on Tuesdays for 40 weeks"},{r:"Wear Red Coral in copper ring on right ring finger"},{r:"Recite Mangal Stotra 108 times on Tuesdays"}]},
+  Pitru_Dosha:{alias:"Ancestral Debt",level:"Moderate",effects:["Blocked progress","Ancestral karmic debt","Father-related difficulties"],remedies:[{r:"Perform Pitru Tarpan on Amavasya at sacred river"},{r:"Donate food on every Amavasya"},{r:"Perform Narayan Bali if advised by priest"}]},
+  Kaal_Sarp:{alias:"Kaal Sarp Yoga",level:"High",effects:["Obstacles despite effort","Recurring setbacks","Delayed success"],remedies:[{r:"Kaal Sarp Puja at Trimbakeshwar Jyotirlinga"},{r:"Recite Maha Mrityunjaya mantra 108 times daily"},{r:"Wear Hessonite (Gomed) after consultation"}]},
+  Grahan_Dosha:{alias:"Eclipse Dosha",level:"Moderate",effects:["Mental confusion","Health concerns","Career obstacles"],remedies:[{r:"Surya/Chandra Grahan Shanti puja"},{r:"Donate jaggery+wheat on Sundays"},{r:"Recite Aditya Hridayam daily"}]},
+  Angarak_Yoga:{alias:"Mars-Rahu Conjunction",level:"High",effects:["Accidents and injury risk","Explosive anger","Legal troubles"],remedies:[{r:"Hanuman Chalisa recitation daily"},{r:"Donate red lentils on Tuesdays"}]},
+  Guru_Chandal:{alias:"Jupiter-Rahu Conjunction",level:"Moderate",effects:["Wisdom distorted by illusion","Guru betrayal","Unconventional beliefs"],remedies:[{r:"Donate yellow items on Thursdays"},{r:"Recite Jupiter Beeja mantra 19000 times"}]},
+  Vish_Yoga:{alias:"Saturn-Moon Conjunction",level:"High",effects:["Emotional depression","Pessimism","Mother's health issues"],remedies:[{r:"Recite Shani Chalisa on Saturdays"},{r:"Donate black sesame on Saturdays"},{r:"Wear Pearl in silver on Monday"}]},
+  Shrapit_Dosha:{alias:"Saturn-Rahu Conjunction",level:"High",effects:["Karmic burden from past","Blocked fortune","Chronic obstacles"],remedies:[{r:"Shrapit Shanti puja at Shani temple"},{r:"Donate iron/black cloth on Saturdays"}]},
+  Kemdrum_Yoga:{alias:"Isolated Moon",level:"Moderate",effects:["Lack of mental support","Financial instability","Emotional isolation"],remedies:[{r:"Worship Goddess Parvati on Mondays"},{r:"Wear natural Pearl in silver"},{r:"Recite Chandra mantra 11000 times"}]},
+  Rahu_Kalatra:{alias:"Rahu in 7th House",level:"Moderate",effects:["Unconventional partnership","Marriage delays","Foreign spouse possible"],remedies:[{r:"Worship Goddess Durga on Fridays"},{r:"Sri Kalahasti Rahu-Ketu temple puja"}]},
+};
+
+function detectDoshas(planets: Record<string,PlanetData>, lagnaRashi:string): DoshaResult[] {
+  const doshas: DoshaResult[] = [];
+  const h = (p:string) => planets[p]?.house || 0;
+  const lon = (p:string) => planets[p]?.degree || 0;
+  const prox = (p1:string,p2:string,orb=8) => { const d=Math.abs(lon(p1)-lon(p2))%360; return Math.min(d,360-d)<=orb; };
+
+  // Manglik
+  const mh = h("Mars");
+  if ([1,4,7,8,12].includes(mh)) {
+    const sc = {1:70,4:65,7:80,8:75,12:60}[mh as keyof typeof DOSHA_DB] || 65;
+    const d = DOSHA_DB.Manglik;
+    doshas.push({name:"Manglik",alias:d.alias,strength:sc as number,level:sc>=70?"High":"Moderate",effects:d.effects,remedies:d.remedies,placement:`Mars in House ${mh}`,lifeAreas:["Marriage","Relationships"]});
+  }
+  // Pitru Dosha
+  const sh = h("Sun");
+  if (sh===9 || prox("Sun","Rahu") || prox("Sun","Ketu")) {
+    const d=DOSHA_DB.Pitru_Dosha;
+    doshas.push({name:"Pitru_Dosha",alias:d.alias,strength:65,level:"Moderate",effects:d.effects,remedies:d.remedies,placement:`Sun in H${sh}/ecliptic affliction`,lifeAreas:["Father","Fortune"]});
+  }
+  // Kaal Sarp
+  const rl=lon("Rahu"),kl=lon("Ketu");
+  const btw = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"].filter(p=>{const pl=lon(p); const mn=Math.min(rl,kl),mx=Math.max(rl,kl); return pl>=mn&&pl<=mx;}).length;
+  if (btw<=1||btw>=6) { const d=DOSHA_DB.Kaal_Sarp; doshas.push({name:"Kaal_Sarp",alias:d.alias,strength:72,level:"High",effects:d.effects,remedies:d.remedies,placement:`Rahu ${rl.toFixed(1)}°/Ketu ${kl.toFixed(1)}°`,lifeAreas:["Overall fortune","Obstacles"]}); }
+  // Grahan
+  if (prox("Sun","Rahu")||prox("Moon","Rahu")||prox("Sun","Ketu")||prox("Moon","Ketu")) { const d=DOSHA_DB.Grahan_Dosha; doshas.push({name:"Grahan_Dosha",alias:d.alias,strength:68,level:"Moderate",effects:d.effects,remedies:d.remedies,placement:"Sun/Moon within 8° of Rahu/Ketu",lifeAreas:["Mind","Health","Clarity"]}); }
+  // Angarak
+  if (prox("Mars","Rahu")) { const d=DOSHA_DB.Angarak_Yoga; doshas.push({name:"Angarak_Yoga",alias:d.alias,strength:78,level:"High",effects:d.effects,remedies:d.remedies,placement:"Mars conjunct Rahu",lifeAreas:["Health","Accidents","Legal"]}); }
+  // Guru Chandal
+  if (prox("Jupiter","Rahu")) { const d=DOSHA_DB.Guru_Chandal; doshas.push({name:"Guru_Chandal",alias:d.alias,strength:65,level:"Moderate",effects:d.effects,remedies:d.remedies,placement:"Jupiter conjunct Rahu",lifeAreas:["Wisdom","Dharma"]}); }
+  // Vish Yoga
+  if (prox("Saturn","Moon")) { const d=DOSHA_DB.Vish_Yoga; doshas.push({name:"Vish_Yoga",alias:d.alias,strength:72,level:"High",effects:d.effects,remedies:d.remedies,placement:"Saturn conjunct Moon",lifeAreas:["Mental health","Happiness"]}); }
+  // Shrapit
+  if (prox("Saturn","Rahu")) { const d=DOSHA_DB.Shrapit_Dosha; doshas.push({name:"Shrapit_Dosha",alias:d.alias,strength:74,level:"High",effects:d.effects,remedies:d.remedies,placement:"Saturn conjunct Rahu",lifeAreas:["Career","Fortune"]}); }
+  // Kemdrum
+  const mh2=h("Moon"); const adj=[(mh2-2+12)%12+1, mh2%12+1];
+  if (!["Sun","Mars","Mercury","Jupiter","Venus","Saturn"].some(p=>adj.includes(h(p)))) { const d=DOSHA_DB.Kemdrum_Yoga; doshas.push({name:"Kemdrum_Yoga",alias:d.alias,strength:55,level:"Moderate",effects:d.effects,remedies:d.remedies,placement:`Moon in H${mh2}, no planets in adjacent houses`,lifeAreas:["Support","Happiness"]}); }
+  // Rahu Kalatra
+  if (h("Rahu")===7) { const d=DOSHA_DB.Rahu_Kalatra; doshas.push({name:"Rahu_Kalatra",alias:d.alias,strength:62,level:"Moderate",effects:d.effects,remedies:d.remedies,placement:"Rahu in 7th house",lifeAreas:["Marriage"]}); }
+
+  return doshas.sort((a,b)=>b.strength-a.strength);
+}
+
+// ═══════════════════════════════════════════
+// YOGA DETECTION (Phaladeepika + BPHS)
+// ═══════════════════════════════════════════
+
+function detectYogas(planets:Record<string,PlanetData>, strengths:Record<string,StrengthData>, lagnaRashi:string): YogaResult[] {
+  const yogas: YogaResult[] = [];
+  const h  = (p:string) => planets[p]?.house || 0;
+  const s  = (p:string) => strengths[p]?.totalScore || 50;
+  const sg = (p:string) => planets[p]?.sign || "";
+  const li = RASHIS.indexOf(lagnaRashi);
+
+  const PANCHA: Record<string,[string[],string]> = {
+    Mars:    [["Aries","Capricorn"],  "Ruchaka"],
+    Mercury: [["Gemini","Virgo"],     "Bhadra"],
+    Jupiter: [["Sagittarius","Cancer"],"Hamsa"],
+    Venus:   [["Taurus","Pisces"],    "Malavya"],
+    Saturn:  [["Capricorn","Libra"],  "Shasha"],
+  };
+  for (const [planet,[signs,yname]] of Object.entries(PANCHA)) {
+    if (signs.includes(sg(planet)) && [1,4,7,10].includes(h(planet))) {
+      yogas.push({yoga:yname,type:"Pancha Mahapurusha",strength:Math.min(100,Math.floor(s(planet)+15)),planets:planet,description:`${planet} in ${sg(planet)} in Kendra H${h(planet)} — ${yname} Yoga`,electionRelevance:"HIGH"});
     }
   }
-
-  const sumMagnitude = deltas.reduce((acc, d) => acc + Math.abs(d), 0);
-  let dirChange = 0;
-  for (let i = 1; i < directions.length; i++) {
-    dirChange += Math.abs(directions[i] - directions[i - 1]);
+  // Gajakesari
+  if (h("Moon")>0 && Math.abs(h("Moon")-h("Jupiter"))%6 in [0,3]) {
+    yogas.push({yoga:"Gajakesari",type:"Raj Yoga",strength:Math.min(100,Math.floor((s("Moon")+s("Jupiter"))/1.5)),planets:"Moon+Jupiter",description:"Jupiter in Kendra from Moon — intelligence, fame, prosperity",electionRelevance:"HIGH"});
   }
-
-  const iseq = alpha * sumMagnitude + beta * dirChange + gamma * reversals;
-  const psi = 1.0;
-  const lambda = 0.5;
-  const omega = psi * Math.exp(-lambda * iseq);
-  const isStable = omega >= OMEGA_CRITICAL;
-
-  let metp = 0;
-  for (let i = 0; i < states.length; i++) {
-    const localOmega = psi * Math.exp(-lambda * Math.abs(deltas[i]));
-    metp += (1 / (localOmega + 1e-9)) * Math.abs(deltas[i]);
+  // Budhaditya
+  if (h("Sun")===h("Mercury")&&h("Sun")>0) {
+    yogas.push({yoga:"Budhaditya",type:"Solar",strength:Math.min(100,Math.floor((s("Sun")+s("Mercury"))/1.8)),planets:"Sun+Mercury",description:"Sun conjunct Mercury — sharp intellect, communication authority",electionRelevance:"MEDIUM"});
   }
+  // Amala
+  for (const p of ["Jupiter","Venus","Moon"]) { if (h(p)===10&&s(p)>60) yogas.push({yoga:"Amala",type:"Reputation",strength:Math.floor(s(p)),planets:p,description:`${p} in 10th — unblemished fame`,electionRelevance:"HIGH"}); }
+  // Raj Yoga (Kendra-Trikona lord combination)
+  if (li>=0) {
+    const kendraLords = new Set([0,3,6,9].map(i=>RASHI_LORD[RASHIS[(li+i)%12]]));
+    const trikonaLords= new Set([0,4,8].map(i=>RASHI_LORD[RASHIS[(li+i)%12]]));
+    const common = [...kendraLords].filter(p=>trikonaLords.has(p));
+    for (const p of common) { if (s(p)>60) yogas.push({yoga:`Yogakaraka (${p})`,type:"Raj Yoga",strength:Math.min(100,Math.floor(s(p)+10)),planets:p,description:`${p} lords both Kendra and Trikona — highest Raj Yoga`,electionRelevance:"HIGH"}); }
+  }
+  return yogas.sort((a,b)=>b.strength-a.strength).slice(0,12);
+}
 
+// ═══════════════════════════════════════════
+// MEDICAL (Ayurveda + Phaladeepika)
+// ═══════════════════════════════════════════
+
+function computeMedical(planets:Record<string,PlanetData>, strengths:Record<string,StrengthData>, dashaLord:string): MedicalData {
+  const s = (p:string) => strengths[p]?.totalScore || 50;
+  const moonSign = planets.Moon?.sign || "";
+  const VATA=["Gemini","Virgo","Libra","Aquarius","Capricorn","Aries"];
+  const PITTA=["Leo","Sagittarius","Scorpio","Aries"];
+  const KAPHA=["Taurus","Cancer","Pisces","Gemini"];
+  let vata=33+(moonSign&&VATA.includes(moonSign)?12:0);
+  let pitta=33+(moonSign&&PITTA.includes(moonSign)?12:0);
+  let kapha=33+(moonSign&&KAPHA.includes(moonSign)?12:0);
+  const tot=vata+pitta+kapha;
+  vata=Math.round(vata/tot*100*10)/10; pitta=Math.round(pitta/tot*100*10)/10; kapha=Math.round(100-vata-pitta*10)/10;
+  const dom = vata>=pitta&&vata>=kapha?"Vata":pitta>=kapha?"Pitta":"Kapha";
+  const hi = Math.round(Math.min(1,(s("Sun")*0.25+s("Moon")*0.25+s("Jupiter")*0.2+s("Mars")*0.15+s("Saturn")*0.15)/100)*1e3)/1e3;
+  const grade = hi>0.8?"Excellent":hi>0.65?"Good":hi>0.45?"Moderate":"Fragile";
+  const ORGAN_MAP: Record<string,{organs:string[];diseases:string[]}> = {
+    Sun:{organs:["Heart","Eyes","Spine"],diseases:["Cardiac","Vision","Back pain"]},
+    Moon:{organs:["Mind","Lungs","Lymph"],diseases:["Mental health","Respiratory"]},
+    Mars:{organs:["Blood","Muscles","Head"],diseases:["Fever","Accidents","Surgery"]},
+    Mercury:{organs:["Nervous system","Skin"],diseases:["Nervous","Skin disorders"]},
+    Jupiter:{organs:["Liver","Fat","Arteries"],diseases:["Liver","Obesity"]},
+    Venus:{organs:["Kidneys","Reproductive"],diseases:["Renal","Reproductive"]},
+    Saturn:{organs:["Joints","Bones","Teeth"],diseases:["Arthritis","Dental","Chronic"]},
+    Rahu:{organs:["Viral","Foreign body"],diseases:["Viral","Toxic","Unusual"]},
+    Ketu:{organs:["Parasite","Skin"],diseases:["Parasitic","Mysterious"]},
+  };
+  const vulns: VulnerabilityData[] = [];
+  for (const planet of ["Sun","Moon","Mars","Saturn","Rahu","Ketu"]) {
+    const p=planets[planet]; if (!p) continue;
+    let vs=0;
+    if (p.dignity==="debilitated") vs+=0.4;
+    else if (p.dignity==="enemy") vs+=0.2;
+    if ([6,8,12].includes(p.house)) vs+=0.2;
+    if (s(planet)<35) vs+=0.2;
+    if (vs>0.15) {
+      const om=ORGAN_MAP[planet]||{organs:[],diseases:[]};
+      vulns.push({planet,organs:om.organs,diseases:om.diseases,vulnerabilityScore:Math.round(vs*100)/100,reason:`${planet} ${p.dignity} in H${p.house} — strength ${Math.round(s(planet))}/100`});
+    }
+  }
+  const DH: Record<string,{risk:string;bodyFocus:string[]}> = {
+    Sun:{risk:"Elevated",bodyFocus:["Heart","Eyes","Authority stress"]},Moon:{risk:"Moderate",bodyFocus:["Mind","Emotions","Lungs"]},Mars:{risk:"Elevated",bodyFocus:["Blood","Surgery","Accidents"]},Mercury:{risk:"Low",bodyFocus:["Nervous system","Skin"]},Jupiter:{risk:"Low",bodyFocus:["Liver","Weight"]},Venus:{risk:"Low",bodyFocus:["Kidneys","Reproductive"]},Saturn:{risk:"Moderate",bodyFocus:["Joints","Teeth","Chronic"]},Rahu:{risk:"Elevated",bodyFocus:["Viral","Unusual symptoms"]},Ketu:{risk:"Moderate",bodyFocus:["Parasitic","Spiritual body"]},
+  };
+  const DOSHA_REM: Record<string,string[]> = {
+    Vata:["Warm sesame oil massage (Abhyanga)","Ashwagandha + warm milk","Triphala churna","Regular sleep schedule"],
+    Pitta:["Coconut oil massage","Shatavari + cool milk","Avoid spicy/fried foods","Brahmi for cooling"],
+    Kapha:["Dry powder massage (Udvartana)","Trikatu churna","Vigorous daily exercise","Ginger tea"],
+  };
+  return {healthIndex:hi,healthGrade:grade,tridosha:{Vata:vata,Pitta:pitta,Kapha:kapha,dominant:dom,remedies:DOSHA_REM[dom]||[]},planetaryVulnerabilities:vulns,currentDashaHealth:{...DH[dashaLord]||{risk:"Moderate",bodyFocus:[]},lord:dashaLord}};
+}
+
+// ═══════════════════════════════════════════
+// POLITICAL / LEADERSHIP
+// ═══════════════════════════════════════════
+
+function computePolitical(planets:Record<string,PlanetData>, strengths:Record<string,StrengthData>, yogas:YogaResult[], lagnaRashi:string): PoliticalData {
+  const s=(p:string)=>strengths[p]?.totalScore||50;
+  const h=(p:string)=>planets[p]?.house||0;
+  const li=RASHIS.indexOf(lagnaRashi);
+  const authority   = Math.min(100,Math.floor(s("Sun")*0.7+s("Mars")*0.3));
+  const vision      = Math.min(100,Math.floor(s("Jupiter")*0.7+s("Mercury")*0.3));
+  const persuasion  = Math.min(100,Math.floor(s("Mercury")*0.5+s("Venus")*0.3+s("Moon")*0.2));
+  const resilience  = Math.min(100,Math.floor(s("Saturn")*0.6+s("Mars")*0.4));
+  const massConnect = Math.min(100,Math.floor(s("Moon")*0.7+s("Venus")*0.3));
+  const strategy    = Math.min(100,Math.floor(s("Mercury")*0.5+s("Saturn")*0.3+s("Jupiter")*0.2));
+  const overall     = Math.round((authority+vision+persuasion+resilience+massConnect+strategy)/6);
+  const grade       = overall>=80?"Outstanding":overall>=65?"Strong":overall>=50?"Moderate":"Developing";
+  const keyFactors: string[] = [];
+  if (authority>70) keyFactors.push(`Sun strong (${authority}) — natural authority`);
+  if (vision>70)    keyFactors.push("Jupiter strong — visionary wisdom");
+  if (h("Sun")===10) keyFactors.push("Sun in 10th — peak authority");
+  if ([1,4,7,10].includes(h("Moon"))) keyFactors.push("Moon in Kendra — mass popularity");
+  const tenthRashi = li>=0?RASHIS[(li+9)%12]:"";
+  const tenthLord  = RASHI_LORD[tenthRashi]||"";
   return {
-    states, iseq, omega, psi, lambda, omegaCritical: OMEGA_CRITICAL,
-    isStable, metp, reversals,
+    leadership:{overallLeadershipIndex:overall,grade,dimensions:{Authority:authority,Vision:vision,Persuasion:persuasion,Resilience:resilience,MassConnect:massConnect,Strategy:strategy},keyFactors},
+    powerYogas:yogas,
+    career:{dashamsha_lagna:lagnaRashi,tenth_house_lord:tenthLord,tenth_house_sign:tenthRashi,tenth_house_planets:Object.entries(planets).filter(([,p])=>p.house===10).map(([n])=>n),career_strength:s(tenthLord)>65?"Strong":s(tenthLord)>45?"Moderate":"Weak",lord_dignity:planets[tenthLord]?.dignity||"neutral"},
   };
 }
 
-// Build UEDP states from chart pipeline steps
-function buildChartUEDPStates(
-  jd: number, lst: number, ascTrop: number, ascSid: number,
-  planets: PlanetPosition[], ayanamsa: number
-): UEDPState[] {
-  const raw = [
-    { label: "Julian Day", value: jd % 1000 },
-    { label: "Local Sidereal Time", value: lst },
-    { label: "Ascendant (Tropical)", value: ascTrop },
-    { label: "Ayanamsa", value: ayanamsa },
-    { label: "Ascendant (Sidereal)", value: ascSid },
-    ...planets.map(p => ({ label: p.name, value: p.longitude })),
-  ];
+// ═══════════════════════════════════════════
+// VARGAS (Divisional Charts)
+// ═══════════════════════════════════════════
 
-  return raw.map((item, i) => {
-    const prev = i === 0 ? item.value : raw[i - 1].value;
-    const delta = item.value - prev;
-    const direction: -1 | 0 | 1 = delta > 0.001 ? 1 : delta < -0.001 ? -1 : 0;
-    return { label: item.label, value: item.value, delta, direction };
-  });
+function computeVargas(rawPos:Record<string,{lon:number;speed:number;retro:boolean}>, ascLon:number): Record<string,VargaData> {
+  function toVarga(lon:number, n:number): string {
+    const signNum = Math.floor(lon/30);
+    const vargaN  = Math.floor((lon%30)/(30/n));
+    if (n===9) { const g={0:0,4:0,8:0,1:3,5:3,9:3,2:6,6:6,10:6,3:9,7:9,11:9}[signNum%12]||0; return RASHIS[(g+vargaN)%12]; }
+    if (n===10) { return signNum%2===0?RASHIS[(signNum*n+vargaN)%12]:RASHIS[(signNum*n+vargaN+9)%12]; }
+    return RASHIS[(signNum*n+vargaN)%12];
+  }
+  const vargas: Record<string,VargaData> = {};
+
+  // D1
+  const lagnaR  = lonToRashi(ascLon);
+  const lagnaIdx= RASHIS.indexOf(lagnaR)||0;
+  const d1Pls: Record<string,any> = {};
+  for (const [pn,pd] of Object.entries(rawPos)) {
+    const lon=pd.lon,rashi=lonToRashi(lon),sign=lonToSign(lon),ph=houseFromLon(lon,ascLon),dig=getDignity(pn,sign);
+    d1Pls[pn]={rashi,sign,house:ph,dignity:dig,degInSign:Math.round(degInSign(lon)*100)/100,nakshatra:lonToNak(lon).name};
+  }
+  vargas.D1={lagna:{rashi:lagnaR,sign:RASHI_EN[lagnaIdx],degInSign:Math.round(degInSign(ascLon)*100)/100,nakshatra:lonToNak(ascLon).name,rashiLord:RASHI_LORD[lagnaR]||""},planets:d1Pls};
+
+  for (const [key,n] of [["D9",9],["D10",10],["D3",3],["D4",4],["D7",7],["D12",12],["D60",60]] as [string,number][]) {
+    const vLagnaR  = toVarga(ascLon,n);
+    const vLagnaIdx= RASHIS.indexOf(vLagnaR)||0;
+    const vPls: Record<string,any> = {};
+    for (const [pn,pd] of Object.entries(rawPos)) {
+      const vR=toVarga(pd.lon,n),vS=RASHI_EN[RASHIS.indexOf(vR)]||vR;
+      const vH=(RASHIS.indexOf(vR)-vLagnaIdx+12)%12+1;
+      vPls[pn]={rashi:vR,sign:vS,house:vH,dignity:getDignity(pn,vS),degInSign:Math.round((pd.lon*n)%30*100)/100,nakshatra:lonToNak(pd.lon).name};
+    }
+    const vb: VargaData = {lagna:{rashi:vLagnaR,sign:RASHI_EN[vLagnaIdx]||vLagnaR,degInSign:Math.round((ascLon*n)%30*100)/100,nakshatra:lonToNak(ascLon).name,rashiLord:RASHI_LORD[vLagnaR]||""},planets:vPls};
+    if (key==="D10") {
+      const t10r=RASHIS[(vLagnaIdx+9)%12];vb.tenthLord=RASHI_LORD[t10r]||"";
+      vb.tenthLordDignity=vPls[vb.tenthLord]?.dignity||"neutral";
+      vb.tenthHousePlanets=Object.entries(vPls).filter(([,p])=>p.house===10).map(([n])=>n);
+    }
+    vargas[key]=vb;
+  }
+  return vargas;
 }
 
-// ============================================================
-// MAIN: Compute Full Horoscope
-// ============================================================
-export function computeHoroscope(birth: BirthData): HoroscopeData {
-  const jd = toJulianDay(birth);
-  const ayanamsa = getLahiriAyanamsa(jd);
-  const lst = getLST(jd, birth.longitude);
-  const ascTrop = getAscendant(lst, birth.latitude);
-  const ascSid = toSidereal(ascTrop, ayanamsa);
-  const ascSign = Math.floor(ascSid / 30);
+// ═══════════════════════════════════════════
+// PREDICTIONS
+// ═══════════════════════════════════════════
 
-  const planetNames = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
-  const planets: PlanetPosition[] = planetNames.map(name => {
-    const { lon: tropLon, speed, retrograde } = getPlanetTropicalLongitude(name, jd);
-    const sidLon = toSidereal(tropLon, ayanamsa);
-    const sign = Math.floor(sidLon / 30);
-    const { nakshatra, pada } = getNakshatra(sidLon);
-    return {
-      name, symbol: PLANET_SYMBOLS[name] || name,
-      longitude: sidLon, sign, signName: SIGNS[sign],
-      degree: sidLon % 30,
-      house: getPlanetHouse(sign, ascSign),
-      isRetrograde: retrograde, speed,
-      nakshatra, nakshatraPada: pada,
-    };
-  });
-
-  // Add Rahu/Ketu
-  const rahuLon = toSidereal(getRahuLongitude(jd), ayanamsa);
-  const ketuLon = (rahuLon + 180) % 360;
-  planets.push({
-    name: "Rahu", symbol: "☊", longitude: rahuLon, sign: Math.floor(rahuLon / 30),
-    signName: SIGNS[Math.floor(rahuLon / 30)], degree: rahuLon % 30,
-    house: getPlanetHouse(Math.floor(rahuLon / 30), ascSign),
-    isRetrograde: true, speed: -0.053,
-    ...getNakshatra(rahuLon), nakshatraPada: getNakshatra(rahuLon).pada
-  });
-  planets.push({
-    name: "Ketu", symbol: "☋", longitude: ketuLon, sign: Math.floor(ketuLon / 30),
-    signName: SIGNS[Math.floor(ketuLon / 30)], degree: ketuLon % 30,
-    house: getPlanetHouse(Math.floor(ketuLon / 30), ascSign),
-    isRetrograde: true, speed: -0.053,
-    ...getNakshatra(ketuLon), nakshatraPada: getNakshatra(ketuLon).pada
-  });
-
-  const houses = getHouses(ascSid);
-  const uedpStates = buildChartUEDPStates(jd, lst, ascTrop, ascSid, planets, ayanamsa);
-  const uedp = computeUEDP(uedpStates);
-
+function computePredictions(planets:Record<string,PlanetData>, strengths:Record<string,StrengthData>, dashaLord:string): Record<string,PredictionScore> {
+  const s=(p:string)=>strengths[p]?.totalScore||50;
+  const h=(p:string)=>planets[p]?.house||0;
+  const sc=(base:number,plist:string[],hbonus?:number)=>{
+    let v=base;
+    for (const p of plist) v+=(s(p)-50)*0.15;
+    if (hbonus&&plist.some(p=>h(p)===hbonus)) v+=8;
+    if (plist.includes(dashaLord)) v+=12;
+    return Math.round(Math.min(100,Math.max(0,v))*10)/10;
+  };
   return {
-    planets, houses,
-    ascendant: ascSid,
-    ascendantSign: SIGNS[ascSign],
-    ascendantDegree: ascSid % 30,
-    julianDay: jd,
-    localSiderealTime: lst,
-    ayanamsa,
-    uedp,
+    career:   {score:sc(40,["Sun","Saturn","Jupiter"],10),domain:"Career & Status",     icon:"⚡"},
+    wealth:   {score:sc(40,["Jupiter","Venus"],11),         domain:"Wealth & Finance",  icon:"💰"},
+    marriage: {score:sc(45,["Venus","Moon"],7),             domain:"Marriage",          icon:"💍"},
+    health:   {score:sc(60,["Sun","Mars"],1),               domain:"Health & Vitality", icon:"🌿"},
+    spiritual:{score:sc(40,["Jupiter","Ketu"],9),           domain:"Spiritual",         icon:"☯"},
+    political:{score:sc(30,["Sun","Mars"],10),              domain:"Political Power",   icon:"🏛"},
+    children: {score:sc(45,["Jupiter","Moon"],5),           domain:"Children",          icon:"👶"},
+    foreign:  {score:sc(35,["Rahu","Saturn"],12),           domain:"Foreign/Travel",    icon:"✈"},
   };
 }
 
-// ============================================================
-// UEDP TIMELINE — Omega trajectory over years
-// ============================================================
-export function computeOmegaTimeline(birth: BirthData, fromYear: number, toYear: number) {
-  const timeline: { year: number; month: number; date: string; omega: number; isStable: boolean; events: string[] }[] = [];
+// ═══════════════════════════════════════════
+// UEDP TIMELINE — past, present, future
+// ═══════════════════════════════════════════
 
-  for (let year = fromYear; year <= toYear; year++) {
-    for (let month = 1; month <= 12; month++) {
-      const testBirth = { ...birth, year, month, day: 15, hour: 12, minute: 0, second: 0 };
+export function computeUEDPTimeline(
+  birth: BirthData,
+  fromYear: number,
+  toYear: number
+): UEDPTimelinePoint[] {
+  const timeline: UEDPTimelinePoint[] = [];
+  const today = new Date();
+
+  for (let year=fromYear; year<=toYear; year++) {
+    for (let month=1; month<=12; month++) {
+      const testBirth: BirthData = {...birth, year, month, day:15, hour:12, minute:0, second:0};
       const jd = toJulianDay(testBirth);
       const ayanamsa = getLahiriAyanamsa(jd);
-      const lst = getLST(jd, birth.longitude);
-      const ascTrop = getAscendant(lst, birth.latitude);
-      const ascSid = toSidereal(ascTrop, ayanamsa);
-      const ascSign = Math.floor(ascSid / 30);
+      const ascLon = getAscendant(jd, birth.latitude, birth.longitude);
+      const ascSid = toSidereal(ascLon, ayanamsa);
 
-      const planetNames = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"];
-      const planets = planetNames.map(name => {
-        const { lon: tropLon, speed, retrograde } = getPlanetTropicalLongitude(name, jd);
-        const sidLon = toSidereal(tropLon, ayanamsa);
-        return { name, longitude: sidLon, sign: Math.floor(sidLon / 30), speed, retrograde };
+      const pNames = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"];
+      const rawScores: number[] = pNames.map(pn => {
+        const {lon} = planetTropLon(pn, jd);
+        const sid = toSidereal(lon, ayanamsa);
+        const sign = lonToSign(sid);
+        const dig = getDignity(pn, sign);
+        const house = houseFromLon(sid, ascSid);
+        const dm = DIG_MULT[dig] || 0.55;
+        const hs = HOUSE_STR[house] || 0.5;
+        return dm*0.6 + hs*0.4;
       });
 
-      const states = planets.map((p, i) => {
-        const prev = i === 0 ? p.longitude : planets[i - 1].longitude;
-        const delta = p.longitude - prev;
-        return {
-          label: p.name, value: p.longitude, delta,
-          direction: (delta > 0 ? 1 : delta < 0 ? -1 : 0) as -1 | 0 | 1
-        };
-      });
+      const uedp = computeUEDPCore(rawScores);
+      const omega = uedp.omega;
 
-      const { omega } = computeUEDP(states);
+      // Events (transit landmarks)
       const events: string[] = [];
+      const satIdx = Math.floor(toSidereal(planetTropLon("Saturn",jd).lon, ayanamsa) / 30);
+      const jupIdx = Math.floor(toSidereal(planetTropLon("Jupiter",jd).lon, ayanamsa) / 30);
+      const ascIdx = Math.floor(ascSid / 30);
+      if (satIdx === ascIdx) events.push("Saturn Lagna transit");
+      if (satIdx === (ascIdx+9)%12) events.push("Saturn 10th transit");
+      if (jupIdx === (ascIdx+4)%12) events.push("Jupiter 5th transit");
+      if (jupIdx === (ascIdx+8)%12) events.push("Jupiter 9th transit");
+      if (satIdx === (ascIdx+10)%12) events.push("Saturn 11th — gains peak");
 
-      // Mark significant transits
-      const sun = planets.find(p => p.name === "Sun");
-      const saturn = planets.find(p => p.name === "Saturn");
-      const jupiter = planets.find(p => p.name === "Jupiter");
-      if (saturn && saturn.retrograde) events.push("Saturn Retrograde");
-      if (jupiter && jupiter.retrograde) events.push("Jupiter Retrograde");
-      if (sun && sun.sign === ascSign) events.push("Solar Return");
+      // Domain scores
+      const domainScores: Record<string,number> = {
+        career:   Math.round((rawScores[0]*0.6+rawScores[6]*0.4)*100),
+        wealth:   Math.round((rawScores[4]*0.6+rawScores[5]*0.4)*100),
+        marriage: Math.round((rawScores[5]*0.7+rawScores[1]*0.3)*100),
+        health:   Math.round((rawScores[0]*0.5+rawScores[2]*0.5)*100),
+        spiritual:Math.round((rawScores[4]*0.6+rawScores[8<pNames.length?8:6]*0.4)*100),
+      };
 
-      timeline.push({ year, month, date: `${year}-${String(month).padStart(2, "0")}`, omega, isStable: omega >= OMEGA_CRITICAL, events });
+      // Classify: top 10% = PEAK, bottom 10% = TROUGH
+      const date = `${year}-${String(month).padStart(2,'0')}`;
+      const periodDate = new Date(year, month-1, 15);
+      const isPast = periodDate < today;
+
+      timeline.push({
+        year, month, date, omega,
+        isStable: omega >= OMEGA_CRIT,
+        iseq: uedp.iseq,
+        events,
+        domainScores,
+        classification: "NEUTRAL", // will be set after
+        confidence: Math.round(Math.min(100,omega*100*1.2)*10)/10,
+      });
     }
   }
+
+  // Classify peaks / troughs after collection
+  const omegas = timeline.map(t=>t.omega);
+  const mu = omegas.reduce((s,v)=>s+v,0)/omegas.length;
+  const sigma = Math.sqrt(omegas.reduce((s,v)=>s+(v-mu)**2,0)/omegas.length);
+  for (const t of timeline) {
+    const z = (t.omega - mu) / (sigma || 1);
+    if (z > 1.0 && t.omega > OMEGA_CRIT) t.classification = "PEAK";
+    else if (z < -1.0) t.classification = "TROUGH";
+    else t.classification = "NEUTRAL";
+  }
+
   return timeline;
 }
 
-// ============================================================
-// DOSHA DETECTION — Surya Siddhanta + Atharva Veda
-// ============================================================
-export function detectDoshas(chart: HoroscopeData): Dosha[] {
-  const doshas: Dosha[] = [];
-  const { planets, houses } = chart;
+// ═══════════════════════════════════════════
+// MARRIAGE ANALYSIS (Phaladeepika + BPHS)
+// ═══════════════════════════════════════════
 
-  const getPlanet = (name: string) => planets.find(p => p.name === name);
-  const sun = getPlanet("Sun");
-  const moon = getPlanet("Moon");
-  const mars = getPlanet("Mars");
-  const mercury = getPlanet("Mercury");
-  const venus = getPlanet("Venus");
-  const saturn = getPlanet("Saturn");
-  const rahu = getPlanet("Rahu");
-  const ketu = getPlanet("Ketu");
-  const jupiter = getPlanet("Jupiter");
+function computeMarriage(planets:Record<string,PlanetData>, lagna:{rashi:string;rashiLord:string}, dasha:DashaBlock, vargas:Record<string,VargaData>, doshas:DoshaResult[]): MarriageAnalysis {
+  const li = RASHIS.indexOf(lagna.rashi)||0;
+  const h=(p:string)=>planets[p]?.house||0;
+  const dig=(p:string)=>planets[p]?.dignity||"neutral";
+  const lord=(hh:number)=>RASHI_LORD[RASHIS[(li+hh-1+12)%12]]||"";
+  const rashi=(hh:number)=>RASHIS[(li+hh-1+12)%12]||"";
+  const sid=(p:string)=>planets[p]?.degree||0;
+  const DIG_SC: Record<string,number>={exalted:5,moolatrikona:4,own:4,friend:3,neutral:2,enemy:1,debilitated:0};
 
-  // 1. Mangal Dosha (Kuja Dosha) — Mars in 1, 4, 7, 8, 12
-  if (mars && [1, 4, 7, 8, 12].includes(mars.house)) {
-    const severity = [7, 8].includes(mars.house) ? "severe" : "moderate";
-    doshas.push({
-      name: "Mangal Dosha (Kuja Dosha)",
-      present: true, severity,
-      planets: ["Mars"],
-      houses: [mars.house],
-      effects: ["Marital disharmony", "Delayed marriage", "Partner health issues", "Aggressive temperament"],
-      isLatent: mars.house === 1 && !!jupiter && jupiter.house === 1,
-      source: "Surya Siddhanta — Mangala Sthana Niyama"
-    });
-  }
+  const h7r=rashi(7),h7l=lord(7),h7ld=dig(h7l),h7lh=h(h7l);
+  const h7ps=Object.entries(planets).filter(([,p])=>p.house===7).map(([n])=>n);
+  let loveScore=0,arrangedScore=0,liveinScore=0;
+  const loveR:string[]=[],arrR:string[]=[],liR:string[]=[];
 
-  // 2. Kaal Sarp Dosha — all planets between Rahu and Ketu
-  if (rahu && ketu) {
-    const rahuLon = rahu.longitude;
-    const ketuLon = ketu.longitude;
-    const mainPlanets = [sun, moon, mars, mercury, venus, saturn, jupiter].filter(Boolean) as PlanetPosition[];
-    const allBetween = mainPlanets.every(p => {
-      const lon = p.longitude;
-      if (rahuLon < ketuLon) return lon >= rahuLon && lon <= ketuLon;
-      return lon >= rahuLon || lon <= ketuLon;
-    });
-    if (allBetween) {
-      doshas.push({
-        name: "Kaal Sarp Dosha",
-        present: true, severity: "severe",
-        planets: ["Rahu", "Ketu"],
-        houses: [rahu.house, ketu.house],
-        effects: ["Obstacles in life progress", "Ancestral karma burden", "Sudden reversals", "Fear and anxiety"],
-        isLatent: false,
-        source: "Atharva Veda — Sarpa Sukta (AV 6.56)"
-      });
-    }
-  }
+  const vmDiff=Math.abs(sid("Venus")-sid("Mars"))%360;
+  const vmConj=vmDiff<=10;
+  if(vmConj){loveScore+=3;loveR.push("Venus+Mars conjunction — powerful romantic magnetism");}
+  else if(Math.min(vmDiff,360-vmDiff)<=15){loveScore+=2;loveR.push("Venus-Mars close — romantic attraction");}
 
-  // 3. Pitra Dosha — Sun + Rahu or Sun in 9th afflicted
-  if (sun && rahu && (sun.house === rahu.house || (sun.house === 9 && [mars, saturn].some(p => p?.house === 9)))) {
-    doshas.push({
-      name: "Pitra Dosha",
-      present: true, severity: "moderate",
-      planets: ["Sun", "Rahu"],
-      houses: [sun.house],
-      effects: ["Ancestral debt", "Career obstacles", "Father's health", "Government troubles"],
-      isLatent: jupiter?.house === 9 || jupiter?.house === sun.house,
-      source: "Atharva Veda — Pitru Tarpana Vidhi (AV 18.1)"
-    });
-  }
+  const h5l=lord(5);if(h(h5l)===h7lh){loveScore+=3;loveR.push(`H5 lord ${h5l} conjunct H7 lord ${h7l}`);}
+  if(h("Rahu")===7){loveScore+=2;liveinScore+=2;loveR.push("Rahu in H7 — unconventional marriage");liR.push("Rahu in H7 — may resist formal marriage");}
+  if(h("Venus")===5){loveScore+=2;loveR.push("Venus in H5 — romance leads to marriage");}
 
-  // 4. Shani Sade Sati — Saturn in 12, 1, or 2 from Moon
-  if (saturn && moon) {
-    const diff = ((saturn.sign - moon.sign + 12) % 12);
-    if ([0, 1, 11].includes(diff)) {
-      doshas.push({
-        name: "Shani Sade Sati",
-        present: true, severity: diff === 0 ? "severe" : "moderate",
-        planets: ["Saturn", "Moon"],
-        houses: [saturn.house, moon.house],
-        effects: ["Mental stress", "Career obstacles", "Financial pressure", "Health challenges"],
-        isLatent: false,
-        source: "Surya Siddhanta — Shani Gochara Phala"
-      });
-    }
-  }
+  const jSid=sid("Jupiter");const h7cusp=((li+6)%12)*30+15;const jh7d=Math.abs(jSid-h7cusp)%360;
+  if(jh7d<=10||Math.abs(jh7d-120)<=15||Math.abs(jh7d-240)<=15){arrangedScore+=3;arrR.push("Jupiter aspects H7 — traditional family-approved marriage");}
+  if(h7ps.includes("Saturn")){arrangedScore+=2;arrR.push("Saturn in H7 — formal traditional marriage");}
+  if(DIG_SC[h7ld]>=3){arrangedScore+=2;arrR.push(`H7 lord ${h7l} ${h7ld} — good family spouse`);}
 
-  // 5. Grahan Dosha — Sun or Moon with Rahu/Ketu
-  [sun, moon].forEach(luminary => {
-    if (!luminary) return;
-    [rahu, ketu].forEach(node => {
-      if (!node) return;
-      if (luminary.house === node.house && Math.abs(luminary.degree - node.degree) < 15) {
-        doshas.push({
-          name: `Grahan Dosha (${luminary.name}-${node.name})`,
-          present: true, severity: "moderate",
-          planets: [luminary.name, node.name],
-          houses: [luminary.house],
-          effects: ["Intellect clouding", "Career setbacks", "Personality confusion", "Spiritual blocks"],
-          isLatent: !!jupiter && Math.abs(jupiter.house - luminary.house) <= 1,
-          source: "Surya Siddhanta — Rahu-Ketu Graha Dosha"
-        });
-      }
-    });
-  });
+  const scores={love:loveScore,arranged:arrangedScore,live_in:liveinScore};
+  const topT=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0][0];
+  let marriageType="Arranged (default)",typeConf=40;
+  if(topT==="love"&&loveScore>=arrangedScore+2){marriageType="Love Marriage — chart strongly supports self-chosen partner";typeConf=Math.min(90,40+loveScore*5);}
+  else if(topT==="arranged"&&arrangedScore>=loveScore+2){marriageType="Arranged Marriage — family involvement in partner selection";typeConf=Math.min(90,40+arrangedScore*5);}
+  else{marriageType="Love-Arranged mix — self-chosen partner with family acceptance";typeConf=55;}
 
-  // 6. Kemdrum Dosha — Moon alone (no planets in adjacent houses)
-  if (moon) {
-    const moonHouse = moon.house;
-    const adjHouses = [(moonHouse % 12) + 1, ((moonHouse - 2 + 12) % 12) + 1];
-    const otherPlanets = [sun, mars, mercury, venus, saturn, jupiter].filter(Boolean) as PlanetPosition[];
-    const hasNeighbor = otherPlanets.some(p => adjHouses.includes(p.house) || p.house === moonHouse);
-    if (!hasNeighbor) {
-      doshas.push({
-        name: "Kemdrum Dosha",
-        present: true, severity: "mild",
-        planets: ["Moon"],
-        houses: [moonHouse],
-        effects: ["Emotional isolation", "Financial instability", "Lack of support", "Mental agitation"],
-        isLatent: true,
-        source: "Atharva Veda — Chandra Shanti Vidhi"
-      });
-    }
-  }
+  // D9 validation
+  const d9=vargas.D9||{};const d9pls=d9.planets||{};const d9lg=d9.lagna||{};
+  const d9li=RASHIS.indexOf(d9lg.rashi||"")||0;
+  const d9h7l=RASHI_LORD[RASHIS[(d9li+6)%12]]||"";
+  const d9h7ld=d9pls[d9h7l]?.dignity||"neutral";
+  const d9VenDig=d9pls.Venus?.dignity||"neutral";
+  const d9Factor=Math.max(0.7,Math.min(1.3,(DIG_SC[d9h7ld]||2)/4.0));
 
-  return doshas;
+  let successScore=DIG_SC[h7ld]*1.4;
+  if([1,4,7,10].includes(h7lh))successScore+=2;
+  else if([5,9].includes(h7lh))successScore+=2;
+  else if(h7lh===11)successScore+=2;
+  else if(h7lh===3)successScore+=1;
+  else if([6,8,12].includes(h7lh))successScore-=2;
+  const MALEFICS=["Saturn","Mars","Rahu","Ketu"];
+  const malH7=h7ps.filter(p=>MALEFICS.includes(p));
+  successScore-=malH7.length*0.5;
+  successScore=Math.max(0,Math.min(10,successScore*d9Factor));
+
+  const successAnalysis=successScore>=7.5?"HIGH — Excellent 7th house; stable, fulfilling marriage strongly indicated":successScore>=5?"MODERATE — Marriage likely stable with effort":successScore>=3?"CHALLENGING — H7 under affliction; conflicts possible":"DIFFICULT — Significant H7 afflictions";
+  const separationIndicators:string[]=[];
+  if([6,12].includes(h7lh))separationIndicators.push(`H7 lord ${h7l} in H${h7lh} — classical difficulty`);
+  if(malH7.length>=2)separationIndicators.push("Multiple malefics in H7 — intense conflicts");
+
+  const cur=dasha.current;
+  const marriageTriggers=new Set([h7l,"Venus","Jupiter","Moon","Rahu"]);
+  const marriageDashaActive=marriageTriggers.has(cur.mahadasha)||marriageTriggers.has(cur.antardasha);
+  const upcoming=dasha.dashas.filter(d=>marriageTriggers.has(d.lord)&&d.start>String(new Date().getFullYear())).slice(0,4).map(d=>({period:`${d.lord} Mahadasha`,from:d.start,to:d.end,note:d.lord===h7l?"Primary — 7th lord":d.lord==="Venus"?"Strong — Venus dasha":"Supportive"}));
+
+  const SPOUSE_Q: Record<string,string> = {Mesha:"Active, independent, courageous.",Vrishabha:"Stable, artistic, sensual.",Mithuna:"Communicative, witty, intellectual.",Karka:"Nurturing, emotional, home-loving.",Simha:"Confident, charismatic, generous.",Kanya:"Analytical, service-oriented, health-conscious.",Tula:"Balanced, artistic, diplomatic.",Vrishchika:"Intense, passionate, investigative.",Dhanu:"Philosophical, adventurous, optimistic.",Makara:"Disciplined, ambitious, practical.",Kumbha:"Unconventional, humanitarian, independent.",Meena:"Compassionate, spiritual, intuitive."};
+
+  return {
+    h7Rashi:h7r,h7Lord:h7l,h7LordDignity:h7ld,h7LordHouse:h7lh,h7Planets:h7ps,
+    spouseQualities:SPOUSE_Q[h7r]||"",
+    marriageType,typeConfidence:typeConf,
+    loveScore,arrangedScore,liveinScore,
+    loveReasons:loveR,arrangedReasons:arrR,liveinReasons:liR,
+    successScore:Math.round(successScore*10)/10,successAnalysis,successPct:successScore>=7?88:successScore>=5?65:successScore>=3?45:28,
+    separationIndicators,secondMarriageRisk:successScore<=3,
+    timingCurrent:`Current ${cur.mahadasha}/${cur.antardasha} dasha `+(marriageDashaActive?"ACTIVELY SUPPORTS marriage":"does not strongly activate marriage houses"),
+    marriageDashaActive,upcomingDashas:upcoming,
+    remedies:["Gauri-Shankar Rudraksha for marital harmony","Friday puja to Mahalakshmi/Venus","Katyayani Mantra: Om Katyayanaya Namah","Uma Maheshwara puja for husband-wife harmony"],
+    advisory:"Marriage analysis shows chart tendencies, not fixed outcomes. Free will, effort, and mutual respect shape any marriage.",
+    d9Validation:{h7LordInD9:d9h7l,h7LordD9Dig:d9h7ld,venusD9Dig:d9VenDig,d9Factor:Math.round(d9Factor*1e3)/1e3,d9Note:`D9 H7 lord ${d9h7l} is ${d9h7ld} in Navamsha — ${DIG_SC[d9h7ld]>=4?"confirms strong marriage":DIG_SC[d9h7ld]<=1?"reduces marriage quality":"neutral D9"}`},
+  };
 }
 
-// ============================================================
-// PARIHARA ENGINE — Surya Siddhanta + Atharva Veda remedies
-// with Karma barrier analysis
-// ============================================================
-export function generatePariharas(doshas: Dosha[], chart: HoroscopeData): Parihara[] {
-  const { planets, uedp } = chart;
-  const saturn = planets.find(p => p.name === "Saturn");
-  const jupiter = planets.find(p => p.name === "Jupiter");
+// ═══════════════════════════════════════════
+// CHILD ANALYSIS
+// ═══════════════════════════════════════════
 
-  const pariharas: Parihara[] = [];
+function computeChildren(planets:Record<string,PlanetData>, lagna:{rashi:string}, dasha:DashaBlock, vargas:Record<string,VargaData>): ChildAnalysis {
+  const li=RASHIS.indexOf(lagna.rashi)||0;
+  const h=(p:string)=>planets[p]?.house||0;
+  const dig=(p:string)=>planets[p]?.dignity||"neutral";
+  const lord=(hh:number)=>RASHI_LORD[RASHIS[(li+hh-1+12)%12]]||"";
+  const rashi=(hh:number)=>RASHIS[(li+hh-1+12)%12];
+  const DIG_SC: Record<string,number>={exalted:5,moolatrikona:4,own:4,friend:3,neutral:2,enemy:1,debilitated:0};
 
-  doshas.forEach(dosha => {
-    if (!dosha.present) return;
+  const h5r=rashi(5),h5l=lord(5),h5ld=dig(h5l),h5lh=h(h5l);
+  const h5ps=Object.entries(planets).filter(([,p])=>p.house===5).map(([n])=>n);
+  const jupH=h("Jupiter"),jupDig=dig("Jupiter");
+  const jupStrong=["exalted","moolatrikona","own","friend"].includes(jupDig);
 
-    let karmaBarrier: string | undefined;
-    let karmaOverride: string | undefined;
+  // Karakas for Jaimini Putra Karaka
+  const KARAKAS=["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"];
+  const degrees=KARAKAS.filter(p=>planets[p]).map(p=>({p,d:planets[p].degInSign})).sort((a,b)=>b.d-a.d);
+  const putraKaraka=degrees[4]?.p||"Jupiter";
 
-    // Assess karma barrier from UEDP metrics
-    if (uedp.omega < uedp.omegaCritical) {
-      karmaBarrier = `UEDP coherence Ω=${uedp.omega.toFixed(3)} is below critical threshold (1/e ≈ 0.368). System instability prevents parihara from anchoring in the karma field. External rituals alone cannot override high Iseq (${uedp.iseq.toFixed(2)}) caused by accumulated karmic reversals (R=${uedp.reversals}).`;
-      karmaOverride = "Reduce systemic instability first: 40-day disciplined Saturn sadhana, structured daily routine (same wake time, meals, sleep), and Bhumi Puja. Only then attempt the specific dosha parihara. The UEDP METP (${uedp.metp.toFixed(2)}) shows karma path requires minimum effort investment through sattvic lifestyle before remedies activate.";
-    } else if (!saturn || [6, 8, 12].includes(saturn.house)) {
-      karmaBarrier = "Saturn (karma karaka) is debilitated in a dusthana house. This means past-life karmic debt is still accruing. Pariharas will be 40–60% effective until Saturn transit improves.";
-      karmaOverride = "Perform Shani Tarpana at Shani temples every Saturday for 1 year first. Also donate black sesame, mustard oil to Shani shrines. Serve elderly and disabled persons consistently.";
-    }
+  let score=DIG_SC[h5ld]||2;
+  if([1,4,7,10].includes(h5lh))score+=2;else if([5,9].includes(h5lh))score+=3;else if([2,11].includes(h5lh))score+=1;else if([6,8,12].includes(h5lh))score-=2;
+  if(jupStrong)score+=2;if(jupH===5)score+=3;
+  const BENE=["Jupiter","Venus","Mercury","Moon"];const MAL=["Saturn","Mars","Rahu","Ketu"];
+  for(const p of h5ps){score+=BENE.includes(p)?1:-1;}
+  score=Math.max(0,Math.min(10,score));
+  const likelihood=score>=7?"HIGH — Chart strongly supports children":score>=5?"MODERATE — Children indicated with some effort":score>=3?"CHALLENGING — H5 under affliction":"DIFFICULT — Multiple afflictions to H5";
 
-    switch (dosha.name) {
-      case "Mangal Dosha (Kuja Dosha)":
-        pariharas.push({
-          dosha: dosha.name,
-          remedy: "Worship Lord Hanuman and Subramanya Swami",
-          ritual: "Kuja Graha Shanti Homa — performed on Tuesday in Bharani or Chitra nakshatra. Recite Mangala Ashtakam 108 times. Red coral (Moonga) in gold ring on ring finger.",
-          mantra: "ॐ क्रां क्रीं क्रौं सः भौमाय नमः (Om Kram Krim Kraum Sah Bhaumaya Namah) — 108 times daily",
-          deity: "Lord Subramanya / Muruga, Hanuman",
-          daan: "Red lentils (masoor dal), copper, red cloth, jaggery — donated on Tuesday",
-          timing: "Tuesday, Chitra or Mrigashira nakshatra, Shukla Paksha (waxing moon)",
-          karmaBarrier, karmaOverride,
-          source: "Surya Siddhanta — Kuja Shanti Prakarana; Atharva Veda — Bhouma Sukta"
-        });
-        break;
+  const afflictions:string[]=[];
+  if(h5ld==="debilitated")afflictions.push(`H5 lord ${h5l} debilitated`);
+  if([6,8,12].includes(h5lh))afflictions.push(`H5 lord ${h5l} in H${h5lh} (dusthana)`);
+  if(h5ps.includes("Saturn"))afflictions.push("Saturn in H5 — delayed children");
+  if(!jupStrong)afflictions.push(`Jupiter (${jupDig}) not strong — Putra Karaka needs support`);
 
-      case "Kaal Sarp Dosha":
-        pariharas.push({
-          dosha: dosha.name,
-          remedy: "Kaal Sarp Shanti Puja at Trimbakeshwar (Nashik) or Rameshwaram",
-          ritual: "Full Kaal Sarp Shanti — 3-day ritual with silver Naga idol immersion in river. Sarpa Sukta Parayana (Atharva Veda 6.56) for 11 days. Install silver Naga pair in home puja. Feed milk and honey to snakes (live) at snake shrines.",
-          mantra: "ॐ नागेभ्यो नमः (Om Nagabhyo Namah); Maha Mrityunjaya Mantra 10,008 times over 41 days",
-          deity: "Lord Shiva (Nagabhushana), Subramanya, Adishesha",
-          daan: "Silver Naga idol, milk, durva grass, white sesame — on Naga Panchami or Pournami",
-          timing: "Naga Panchami, Pournami (full moon), during Ardra or Ashlesha nakshatra",
-          karmaBarrier: karmaBarrier || "Kaal Sarp is a multi-lifetime ancestral karma. Single ritual may activate it but not dissolve it. Without genuine ancestral tarpana and lifestyle karma-karma (action + fruit surrender), the dosha reactivates every Rahu-Ketu transit cycle.",
-          karmaOverride: karmaOverride || "Perform Narayana Nagabali (ancestral rite) at Trimbakeshwar. Additionally, do Tripindi Shraddha for 3 generations of ancestors. Only when ancestral debt is cleared can the serpent karma be lifted. UEDP equivalent: you must reduce Reversal Count (R) in your life sequence by creating new directional consistency.",
-          source: "Atharva Veda — Sarpa Sukta AV 6.56; Naga Kalpa Tantra"
-        });
-        break;
+  // Gender tendency
+  const ODD_R=["Mesha","Mithuna","Simha","Tula","Dhanu","Kumbha"];
+  const EVEN_R=["Vrishabha","Karka","Kanya","Vrishchika","Makara","Meena"];
+  let ms=0,fs=0;
+  if(ODD_R.includes(h5r)){ms+=2;}else if(EVEN_R.includes(h5r)){fs+=2;}
+  const d7=vargas.D7||{};const d7lg=d7.lagna||{};const d7li=RASHIS.indexOf(d7lg.rashi||"")||0;
+  const d7h5r=RASHIS[(d7li+4)%12]||"";
+  if(ODD_R.includes(d7h5r)){ms+=3;}else if(EVEN_R.includes(d7h5r)){fs+=3;}
+  const totG=ms+fs||1;const malePct=Math.round(ms/totG*100);const gap=Math.abs(ms-fs);
+  const genderTend=gap<=3?"Indeterminate — balanced signals":ms>fs?`Male leaning (${malePct}%)`:`Female leaning (${100-malePct}%)`;
 
-      case "Pitra Dosha":
-        pariharas.push({
-          dosha: dosha.name,
-          remedy: "Pitru Tarpana and Shradha Karma",
-          ritual: "Pitru Paksha Shradha every year — 15-day ancestral ritual. Gaya Shraddha (pilgrimage to Gaya, Bihar). Brahmin bhojan on each Amavasya. Plant Peepal tree and water it daily for 1 year. Feed crows (pitru birds) on Amavasya.",
-          mantra: "ॐ पितृभ्यः स्वधायिभ्यः स्वधा नमः (Om Pitribhyah Svadhaibhyah Svadha Namah) — daily at noon facing south",
-          deity: "Lord Yama, Pitru Devatas, Lord Vishnu (as Pitru Tarpana receiver)",
-          daan: "Black sesame, barley flour, water — daily facing south on Amavasya",
-          timing: "Amavasya (new moon), Pitru Paksha (Bhadrapada-Ashwina month), Sunday",
-          karmaBarrier, karmaOverride,
-          source: "Atharva Veda — Pitru Tarpana Vidhi AV 18.1; Surya Siddhanta — Pitru Grahana"
-        });
-        break;
+  const DUAL_R=["Mithuna","Kanya","Dhanu","Meena"];
+  const countTend=DUAL_R.includes(h5r)?"Two or more children (dual sign in H5)":h5ps.includes("Jupiter")?"Two or more children (Jupiter in H5)":h5ps.includes("Saturn")?"One child (delayed)":"One to two children";
 
-      case "Shani Sade Sati":
-        pariharas.push({
-          dosha: dosha.name,
-          remedy: "Shani Shanti and Hanuman upasana",
-          ritual: "Shani Trayodashi fast (13th day, Saturn weekday). Light sesame oil lamp at Shani shrine every Saturday. Recite Shani Stotra and Dasaratha Shani Stotra. Wear 7-mukhi Rudraksha. Read Shani Mahatmya on Saturdays.",
-          mantra: "ॐ शं शनैश्चराय नमः (Om Sham Shanaishcharaya Namah) — 19,000 times in 40 days OR ॐ प्रां प्रीं प्रौं सः शनैश्चराय नमः",
-          deity: "Lord Shani, Lord Hanuman (as Shani-remover), Lord Ayyappa",
-          daan: "Black sesame, mustard oil, iron utensils, blue/black cloth, shoes to poor — on Saturday",
-          timing: "Saturday, Shani Trayodashi, Pushya nakshatra",
-          karmaBarrier: karmaBarrier || "Sade Sati is a cosmic karmic review period. Parihara reduces intensity but cannot eliminate it — it is meant to occur. Resistance increases suffering. The karma lesson of Saturn MUST be learned.",
-          karmaOverride: karmaOverride || "Surrender is the supreme parihara for Sade Sati. Accept Saturn's lessons with discipline and patience. Serve elders, disabled people, and Shani bhaktas. The UEDP principle applies: reduce Iseq by accepting Saturn's structure rather than fighting it. Your Ω will rise naturally as you align with Saturn's teaching.",
-          source: "Surya Siddhanta — Shani Gochara Phala; Skanda Purana — Shani Mahatmya"
-        });
-        break;
+  const cur=dasha.current;
+  const goodD=new Set([h5l,putraKaraka,"Jupiter","Moon","Venus"]);
+  const curFav=goodD.has(cur.mahadasha)||goodD.has(cur.antardasha);
+  const upcoming=dasha.dashas.filter(d=>goodD.has(d.lord)&&d.start>String(new Date().getFullYear())).slice(0,3).map(d=>({period:`${d.lord} Mahadasha`,from:d.start,to:d.end}));
 
-      default:
-        pariharas.push({
-          dosha: dosha.name,
-          remedy: `Graha Shanti for ${dosha.planets.join(" and ")}`,
-          ritual: `Perform Navagraha Homa with specific emphasis on ${dosha.planets.join(" and ")} graha. Consult a Vedic scholar for personalized ritual timing based on natal nakshatra.`,
-          mantra: "ॐ नवग्रहाय नमः (Om Navaghrahaya Namah) — 1008 times",
-          deity: "Navagraha — Nine Planetary Deities",
-          daan: "Graha-specific items on their respective weekdays",
-          timing: "Native's birth nakshatra day, Pournami (full moon)",
-          karmaBarrier, karmaOverride,
-          source: "Surya Siddhanta — Graha Shanti Prakarana"
-        });
-    }
-  });
-
-  return pariharas;
+  return {
+    h5Rashi:h5r,h5Lord:h5l,h5LordDignity:h5ld,h5LordHouse:h5lh,h5Planets:h5ps,
+    jupiterHouse:jupH,jupiterDignity:jupDig,jupiterStrong:jupStrong,putraKaraka,
+    childScore:score,likelihood,likelihoodPct:score>=7?85:score>=5?65:score>=3?40:20,
+    afflictions,
+    genderTendency:genderTend,
+    genderBreakdown:{maleScore:ms,femaleScore:fs,malePct,femalePct:100-malePct,confidence:gap>=8?"Moderate":gap>=5?"Low-Moderate":"Low",d7H5Rashi:d7h5r},
+    countTendency:countTend,
+    healthTendencies:h5ps.includes("Mars")?["Active child — prone to fevers"]:h5ps.includes("Saturn")?["Serious child — respiratory vigilance"]:["Good general health indicated"],
+    mentalHealthNotes:h5ps.includes("Rahu")?["Rahu in H5 — highly sensitive, unconventional thinker"]:h5ps.includes("Ketu")?["Ketu in H5 — deeply intuitive, spiritual gifts"]:[],
+    timingCurrent:`Current ${cur.mahadasha}/${cur.antardasha} `+(curFav?"ACTIVELY FAVOURS child birth":"does not strongly activate H5"),
+    upcomingChildDashas:upcoming,
+    remedies:["Santana Gopala Mantra — recite 108× daily","Santana Gopala Yantra — install on Thursdays","Jupiter puja every Thursday","Donate yellow items on Thursdays"],
+    advisory:"Child analysis is one of the most sensitive areas of Jyotisha. These are classical tendencies, NOT predictions. Modern medicine, IVF, and adoption are valid paths. Always consult both a qualified astrologer and a medical professional.",
+  };
 }
 
-// ============================================================
-// TIMELINE PREDICTIONS — Date & Time specific
-// ============================================================
-export function generatePredictions(birth: BirthData, chart: HoroscopeData): Prediction[] {
-  const birthYear = birth.year;
-  const predictions: Prediction[] = [];
-  const { planets, uedp } = chart;
-  const ascSign = Math.floor(chart.ascendant / 30);
+// ═══════════════════════════════════════════
+// AUSPICIOUS DIRECTIONS
+// ═══════════════════════════════════════════
 
-  // Saturn transit periods (approx 2.5 years per sign)
-  const saturnTransitYear = (sign: number) => Math.round(birthYear + ((sign - ascSign + 12) % 12) * 2.5);
+function computeDirections(planets:Record<string,PlanetData>, lagna:{rashi:string;rashiLord:string}, shadbala:Record<string,ShadbalaData>, panchang:PanchangData): DirectionAnalysis {
+  const lagnaLord=lagna.rashiLord;
+  const li=RASHIS.indexOf(lagna.rashi)||0;
+  const DIKPALA: Record<string,string>={Sun:"East",Mercury:"North",Moon:"North-West",Venus:"South-East",Mars:"South",Saturn:"West",Jupiter:"North-East",Rahu:"South-West",Ketu:"South-East"};
+  const DIGBALA_DIR: Record<string,string>={Sun:"South",Mars:"South",Saturn:"West",Jupiter:"East",Mercury:"North",Moon:"North",Venus:"North"};
+  const RASHI_DIR: Record<string,string>={Mesha:"East",Vrishabha:"South",Mithuna:"West",Karka:"North",Simha:"East",Kanya:"South",Tula:"West",Vrishchika:"North",Dhanu:"East",Makara:"South",Kumbha:"West",Meena:"North"};
+  const NAKSHATRA_DIR: Record<string,string>={Ashwini:"East",Bharani:"East",Krittika:"East",Rohini:"South-East",Mrigashira:"South-East",Ardra:"South",Punarvasu:"South",Pushya:"South",Ashlesha:"South-West",Magha:"South-West","Purva Phalguni":"South-West","Uttara Phalguni":"West",Hasta:"West",Chitra:"West",Swati:"North-West",Vishakha:"North-West",Anuradha:"North-West",Jyeshtha:"North",Moola:"North","Purva Ashadha":"North","Uttara Ashadha":"North-East",Shravana:"North-East",Dhanishtha:"North-East",Shatabhisha:"East","Purva Bhadrapada":"East","Uttara Bhadrapada":"South-East",Revati:"South-East"};
 
-  // Jupiter transit periods (1 year per sign)
-  const jupiterTransitYear = (sign: number) => Math.round(birthYear + ((sign - ascSign + 12) % 12));
+  const votes: Record<string,{weight:number;layers:string[];reasons:string[]}> = {};
+  const vote=(dir:string,layer:string,reason:string,w=1)=>{
+    if(!dir)return;
+    if(!votes[dir])votes[dir]={weight:0,layers:[],reasons:[]};
+    votes[dir].weight+=w; votes[dir].layers.push(layer); votes[dir].reasons.push(reason);
+  };
 
-  // Business prediction
-  const businessStart = saturnTransitYear(10); // 10th house transit
-  predictions.push({
-    domain: "Business & Career",
-    icon: "💼",
-    period: `${businessStart}–${businessStart + 3}`,
-    startDate: `${businessStart}-01-01`,
-    endDate: `${businessStart + 3}-12-31`,
-    intensity: uedp.omega > 0.5 ? "high" : "medium",
-    omegaAtPeriod: Math.min(uedp.omega * 1.2, 0.95),
-    summary: "Saturn's 10th house transit activates peak professional karma. UEDP Ω projects above critical threshold — decisions convert to structured outcomes.",
-    details: [
-      "Best period for business expansion and brand launch",
-      "Authority and recognition peak — government contracts favorable",
-      "Long-term partnerships formed now will sustain for decades",
-      "Avoid impulsive decisions in Q2 of each year (Mars activation)"
-    ],
-    planetaryTriggers: ["Saturn in 10th", "Jupiter aspect on 10th lord", "Sun transit over Ascendant"],
-  });
+  const l1=DIKPALA[lagnaLord]||"East";
+  vote(l1,"L1_Surya_Siddhanta_Dikpala",`Lagna lord ${lagnaLord} rules ${l1}`,2);
+  vote(DIGBALA_DIR[lagnaLord]||"East","L2_Phaladeepika_Digbala",`${lagnaLord} gains Digbala in ${DIGBALA_DIR[lagnaLord]}`,3);
+  vote(RASHI_DIR[lagna.rashi]||"East","L3_BPHS_Lagna_Rashi",`Lagna ${lagna.rashi} faces ${RASHI_DIR[lagna.rashi]}`,2);
+  vote(NAKSHATRA_DIR[panchang.nakshatra]||"East","L4_Atharva_Veda_Nakshatra",`Moon Nakshatra ${panchang.nakshatra}`,2);
 
-  // Politics / Public recognition
-  const politicsYear = jupiterTransitYear(9); // 9th house transit
-  predictions.push({
-    domain: "Politics & Public Recognition",
-    icon: "🏛️",
-    period: `${politicsYear}–${politicsYear + 2}`,
-    startDate: `${politicsYear}-06-01`,
-    endDate: `${politicsYear + 2}-05-31`,
-    intensity: planets.find(p => p.name === "Sun")?.house === 10 ? "high" : "medium",
-    omegaAtPeriod: uedp.omega,
-    summary: "Jupiter-9th house transit opens doors to public life, mentors, and institutional power. Sun's natal position determines depth of political emergence.",
-    details: [
-      "Elder mentors and institutional backing arrive",
-      "Foreign connections and long-distance recognition",
-      "Legal matters resolve favorably — court judgments positive",
-      "Spiritual authority increases — people seek your guidance"
-    ],
-    planetaryTriggers: ["Jupiter in 9th", "Sun-Jupiter mutual aspect", "Ketu transit past 12th"],
-  });
+  const planet_str=Object.entries(shadbala).sort((a,b)=>b[1].totalRupas-a[1].totalRupas);
+  const strongest=planet_str[0]?.[0]||"Jupiter";
+  vote(DIKPALA[strongest]||"East","L5_Karma_Disha_Shadbala",`Strongest planet ${strongest}`,2);
 
-  // Branding / Media
-  const brandYear = jupiterTransitYear(3); // 3rd house transit
-  predictions.push({
-    domain: "Branding & Media",
-    icon: "📢",
-    period: `${brandYear}–${brandYear + 1}`,
-    startDate: `${brandYear}-03-01`,
-    endDate: `${brandYear + 1}-09-30`,
-    intensity: "medium",
-    omegaAtPeriod: uedp.omega * 0.9,
-    summary: "Mercury-ruled 3rd house activation through Jupiter transit enables communication, media presence, and brand voice to crystallize.",
-    details: [
-      "Digital media campaigns will achieve viral spread",
-      "Writing, speaking, publishing opportunities appear",
-      "Siblings and collaborators become key allies",
-      "Short journeys bring unexpected breakthroughs"
-    ],
-    planetaryTriggers: ["Jupiter in 3rd", "Mercury-Venus conjunction", "Rahu in Gemini-adjacent"],
-  });
+  const h10rashi=RASHIS[(li+9)%12];const h10lord=RASHI_LORD[h10rashi]||"Sun";
+  vote(DIKPALA[h10lord]||"East","L6_10th_Lord_Career",`10th lord ${h10lord}`,2);
 
-  // Marriage
-  const marriageYear = saturnTransitYear(7); // 7th house transit
-  const venusHouse = planets.find(p => p.name === "Venus")?.house || 7;
-  predictions.push({
-    domain: "Marriage & Partnership",
-    icon: "💍",
-    period: `${marriageYear - 1}–${marriageYear + 2}`,
-    startDate: `${marriageYear - 1}-01-01`,
-    endDate: `${marriageYear + 2}-12-31`,
-    intensity: [1, 7].includes(venusHouse) ? "high" : "medium",
-    omegaAtPeriod: uedp.omega,
-    summary: "Venus Dasha sub-period with 7th lord activation. Marriage timing confirmed by Saturn transit over 7th house. Nakshatra timing: Rohini or Uttara Phalguni nakshatras are auspicious.",
-    details: [
-      "Marriage most auspicious: Shukla Paksha, Venus hora, Thursday or Friday",
-      "Partner likely from different background or city",
-      "Avoid marriage during Rahu-Ketu transit of 7th house",
-      "Second marriage/significant partnership possible if Venus in 8th"
-    ],
-    planetaryTriggers: ["Saturn in 7th", "Venus Dasha/Antardasha", "Jupiter aspect on 7th lord"],
-  });
+  const sorted=Object.entries(votes).sort((a,b)=>b[1].weight-a[1].weight);
+  const primary=sorted.filter(([,v])=>v.weight>=5).map(([d,v])=>({direction:d,...v}));
+  const secondary=sorted.filter(([,v])=>v.weight>=2&&v.weight<5).map(([d,v])=>({direction:d,...v}));
+  const inauspicious=Object.entries(planets).filter(([,p])=>[6,8,12].includes(p.house)&&DIKPALA[p.rashi]).map(([pn,p])=>({direction:DIKPALA[pn]||"",planet:pn,house:p.house,reason:`${pn} in dusthana H${p.house}`}));
 
-  // Children
-  const childrenYear = jupiterTransitYear(5); // 5th house transit
-  predictions.push({
-    domain: "Children & Creativity",
-    icon: "👶",
-    period: `${childrenYear}–${childrenYear + 2}`,
-    startDate: `${childrenYear}-01-01`,
-    endDate: `${childrenYear + 2}-12-31`,
-    intensity: planets.find(p => p.name === "Jupiter")?.house === 5 ? "high" : "medium",
-    omegaAtPeriod: uedp.omega * 1.1,
-    summary: "Jupiter's 5th house transit — Putra Bhava activation. This is the primary window for childbirth, adoption, or major creative/intellectual achievements.",
-    details: [
-      "Conception most favorable: Pushya nakshatra, Pournami",
-      "First child likely in this period if unmarried or newly married",
-      "Creative projects launched now will have long-term impact",
-      "Spiritual children (disciples, students) also indicated"
-    ],
-    planetaryTriggers: ["Jupiter in 5th", "5th lord in Kendra", "Moon in 5th during transit"],
-  });
+  return {
+    lagnaLord,lagnaRashi:lagna.rashi,strongestPlanet:strongest,h10Lord:h10lord,
+    primaryDirections:primary,secondaryDirections:secondary,
+    purposeDirections:{sleeping_head:RASHI_DIR[lagna.rashi]||"East",study_work:DIKPALA[strongest]||"East",prayer_worship:l1,career_business:DIKPALA[h10lord]||"East",travel:RASHI_DIR[lagna.rashi]||"East"},
+    inauspiciousDirections:inauspicious,
+    remedies:[`Face ${primary[0]?.direction||"East"} while working or meditating`,`Sleep with head towards ${RASHI_DIR[lagna.rashi]||"East"}`,`Perform morning prayer facing ${l1}`,`For career: face ${DIKPALA[h10lord]||"East"}`],
+    summary:`Primary: ${primary.map(d=>d.direction).slice(0,2).join(", ")||"See secondary"}. Career: ${DIKPALA[h10lord]||"East"} (${h10lord}). Karma Disha: ${DIKPALA[strongest]} (${strongest}).`,
+  };
+}
 
-  // Health / Afflictions
-  const healthRiskYear = saturnTransitYear(6); // 6th house transit
-  predictions.push({
-    domain: "Health & Afflictions",
-    icon: "🏥",
-    period: `${healthRiskYear}–${healthRiskYear + 2}`,
-    startDate: `${healthRiskYear}-01-01`,
-    endDate: `${healthRiskYear + 2}-12-31`,
-    intensity: uedp.omega < OMEGA_CRITICAL ? "critical" : "medium",
-    omegaAtPeriod: uedp.omega * 0.7,
-    summary: `UEDP flags this period: Ω drops toward critical threshold (1/e). Saturn's 6th house transit activates ancestral health karma. Watch ${planets.find(p => p.name === "Moon")?.signName || "emotional"} body zone.`,
-    details: [
-      "Digestive and chronic illness vulnerabilities peak",
-      "Avoid surgeries during Rahu in 6th or 8th",
-      "Mental health — meditation and pranayama are protective",
-      "Enemies and litigation risks peak — maintain legal clarity"
-    ],
-    planetaryTriggers: ["Saturn in 6th", "Mars transit over natal Moon", "Rahu in 6th/8th"],
-  });
+// ═══════════════════════════════════════════
+// CONFIDENCE
+// ═══════════════════════════════════════════
 
-  // Wealth emergence
-  const wealthYear = saturnTransitYear(11); // 11th house transit
-  predictions.push({
-    domain: "Financial Emergence",
-    icon: "💰",
-    period: `${wealthYear}–${wealthYear + 3}`,
-    startDate: `${wealthYear}-01-01`,
-    endDate: `${wealthYear + 3}-12-31`,
-    intensity: "high",
-    omegaAtPeriod: Math.min(uedp.omega * 1.4, 0.98),
-    summary: "Saturn's 11th house transit — peak Labha Bhava activation. UEDP Ω projected at maximum lifetime high. Wealth accumulation, network expansion, and legacy building phase.",
-    details: [
-      "Long-term investments made now compound for decades",
-      "Elder siblings, friends, and community become wealth channels",
-      "Social network becomes primary source of opportunity",
-      "Passive income streams can be established permanently"
-    ],
-    planetaryTriggers: ["Saturn in 11th", "Jupiter in 11th/2nd/9th", "Venus Dasha activation"],
-  });
+function computeConfidence(allAyanamsas:Record<string,number>, ascLon:number): ConfidenceData {
+  const vals=Object.values(allAyanamsas);
+  const spread=vals.length?Math.max(...vals)-Math.min(...vals):0.5;
+  const degIn=ascLon%30;
+  const boundary=degIn<2||degIn>28;
+  const agreeS=Math.max(0.3,1-spread*3);
+  const boundS=boundary?0.5:1.0;
+  const interpS=boundary?0.6:0.9;
+  const overall=Math.round((0.25*0.99+0.35*agreeS+0.25*boundS+0.15*interpS)*1e4)/1e4;
+  const mode=overall>=0.85?"strict":overall>=0.65?"balanced":"exploratory";
+  return {
+    overall,mode,
+    ephemeris:{score:0.99,grade:"HIGH",note:"Moshier built-in orbital mechanics — ~1 arcsec accuracy"},
+    ayanamsaAgreement:{score:Math.round(agreeS*1e4)/1e4,grade:agreeS>0.8?"HIGH":"MEDIUM",note:`Spread ${spread.toFixed(4)}° across ${vals.length} systems`},
+    boundaryStability:{score:boundS,grade:boundary?"LOW":"HIGH",note:boundary?`Lagna near sign boundary at ${degIn.toFixed(2)}° — verify birth time`:`Stable at ${degIn.toFixed(2)}° in sign`},
+    interpretationCertainty:{score:interpS,grade:interpS>=0.85?"HIGH":"MEDIUM",note:"Lahiri ayanamsa (India Govt standard)"},
+  };
+}
 
-  return predictions;
+// ═══════════════════════════════════════════
+// MAIN: generateFullChart
+// ═══════════════════════════════════════════
+
+export function generateFullChart(birth: BirthData): ChartData {
+  const ayanamsaStr = birth.ayanamsa || "lahiri";
+  const jd = toJulianDay(birth);
+  const allAyan = getAllAyanamsas(jd);
+  const ayanamsa = allAyan[ayanamsaStr] || getLahiriAyanamsa(jd);
+
+  // Planet positions
+  const pNames = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"];
+  const rawPosAll: Record<string,{lon:number;speed:number;retro:boolean}> = {};
+  for (const pn of pNames) {
+    const {lon: tropLon, speed, retro} = planetTropLon(pn, jd);
+    rawPosAll[pn] = {lon: toSidereal(tropLon, ayanamsa), speed, retro};
+  }
+  const rahuLon = toSidereal(getRahuLon(jd), ayanamsa);
+  const ketuLon = (rahuLon + 180) % 360;
+  rawPosAll.Rahu = {lon: rahuLon, speed: -0.053, retro: true};
+  rawPosAll.Ketu = {lon: ketuLon, speed: -0.053, retro: true};
+
+  const tropAsc = getAscendant(jd, birth.latitude, birth.longitude);
+  const ascLon  = toSidereal(tropAsc, ayanamsa);
+  const sunLon  = rawPosAll.Sun.lon;
+  const moonLon = rawPosAll.Moon.lon;
+
+  const lagnaRashi = lonToRashi(ascLon);
+  const lagnaSign  = lonToSign(ascLon);
+  const lagnaNak   = lonToNak(ascLon);
+  const lagna = {
+    rashi:lagnaRashi, sign:lagnaSign,
+    degree:Math.round(ascLon*1e4)/1e4,
+    degInSign:Math.round(degInSign(ascLon)*1e4)/1e4,
+    nakshatra:lagnaNak.name, pada:lagnaNak.pada,
+    rashiLord:RASHI_LORD[lagnaRashi]||"",
+  };
+
+  const planets  = buildPlanetTable(rawPosAll, ascLon, sunLon);
+  const panchang = computePanchang(jd, moonLon, sunLon, ascLon, ayanamsaStr);
+  const strengths= computeStrengths(planets);
+  const shadbala = computeShadbala(planets);
+  const ashtakavarga = computeAshtakavarga(planets, lagnaRashi);
+  const bhavas   = computeBhavas(planets, ascLon);
+
+  const birthDt  = new Date(birth.year, birth.month-1, birth.day, birth.hour, birth.minute, birth.second);
+  const dashaList= computeDashas(birthDt, moonLon);
+  const dasha    = buildDashaBlock(dashaList, birthDt, moonLon);
+  const curLord  = dasha.current.mahadasha;
+
+  const doshas   = detectDoshas(planets, lagnaRashi);
+  const yogas    = detectYogas(planets, strengths, lagnaRashi);
+  const medical  = computeMedical(planets, strengths, curLord);
+  const political= computePolitical(planets, strengths, yogas, lagnaRashi);
+  const vargas   = computeVargas(rawPosAll, ascLon);
+  const predictions = computePredictions(planets, strengths, curLord);
+  const confidence= computeConfidence(allAyan, ascLon);
+
+  // UEDP core
+  const xSeq = Object.values(strengths).map(s=>s.totalScore/100);
+  xSeq.push(...Object.values(predictions).map(p=>p.score/100));
+  const uedp = computeUEDPCore(xSeq, 0.4, 0.35, 0.25, 0.3, 4);
+
+  // UEDP Timeline — 10 years back to 10 years forward
+  const nowYear = new Date().getFullYear();
+  const uedpTimeline = computeUEDPTimeline(birth, Math.max(birth.year, nowYear-10), nowYear+10);
+
+  // Hora analysis
+  const horaAnalysis = computeHoraAnalysis(birth, dasha, planets, ayanamsa);
+
+  // Marriage / Children / Directions
+  const marriage   = computeMarriage(planets, lagna, dasha, vargas, doshas);
+  const children   = computeChildren(planets, lagna, dasha, vargas);
+  const directions = computeDirections(planets, lagna, shadbala, panchang);
+
+  return {
+    status:"ok", name:birth.name, place:birth.place||"",
+    latitude:birth.latitude, longitude:birth.longitude,
+    lagna, planets, panchang,
+    ayanamsaUsed:ayanamsaStr, ayanamsaValue:Math.round(ayanamsa*1e6)/1e6,
+    allAyanamsas:allAyan,
+    strengths, shadbala, ashtakavarga, bhavas, dasha,
+    doshas, yogas, medical, political, vargas,
+    predictions, uedp, uedpTimeline,
+    horaAnalysis, marriage, children, directions, confidence,
+    input:{datetime:`${birth.year}-${birth.month}-${birth.day}T${birth.hour}:${birth.minute}:${birth.second}`,lat:birth.latitude,lon:birth.longitude,tz:birth.timezone,ayanamsa:ayanamsaStr},
+  };
 }
