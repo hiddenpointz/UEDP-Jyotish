@@ -1,0 +1,175 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cosmos-950: #1c1d4b;
+  --cosmos-900: #2f3281;
+  --cosmos-800: #3535a3;
+  --cosmos-700: #413fca;
+  --cosmos-600: #4f4ee6;
+  --gold-400: #fbbf24;
+  --gold-500: #f59e0b;
+  --jade-400: #4ade80;
+  --crimson-400: #f87171;
+  --bg-dark: #0a0b1e;
+  --bg-card: rgba(28, 29, 75, 0.7);
+  --border-glow: rgba(251, 191, 36, 0.2);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-dark);
+  color: #e8e4d9;
+  font-family: 'Crimson Pro', Georgia, serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Cosmic starfield background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: 
+    radial-gradient(ellipse at 20% 20%, rgba(99, 112, 241, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(245, 158, 11, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 50% 50%, rgba(10, 11, 30, 1) 0%, rgba(10, 11, 30, 0.8) 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 45%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 60% 10%, rgba(255,255,255,0.7) 0%, transparent 100%),
+    radial-gradient(1px 1px at 80% 30%, rgba(255,255,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 70%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 35% 85%, rgba(255,255,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 90%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 50% 55%, rgba(255,255,255,0.5) 0%, transparent 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+#__next { position: relative; z-index: 1; }
+
+.font-display { font-family: 'Cinzel', serif; }
+.font-body { font-family: 'Crimson Pro', serif; }
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Glassmorphism cards */
+.glass-card {
+  background: rgba(28, 29, 75, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(251, 191, 36, 0.15);
+  border-radius: 1rem;
+}
+
+.glass-card-dark {
+  background: rgba(10, 11, 30, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 112, 241, 0.2);
+  border-radius: 1rem;
+}
+
+/* Glow effects */
+.glow-gold { box-shadow: 0 0 30px rgba(251, 191, 36, 0.3), 0 0 60px rgba(251, 191, 36, 0.1); }
+.glow-cosmos { box-shadow: 0 0 30px rgba(99, 112, 241, 0.3), 0 0 60px rgba(99, 112, 241, 0.1); }
+.glow-jade { box-shadow: 0 0 20px rgba(74, 222, 128, 0.3); }
+.glow-crimson { box-shadow: 0 0 20px rgba(248, 113, 113, 0.3); }
+
+/* Text glow */
+.text-glow-gold { text-shadow: 0 0 20px rgba(251, 191, 36, 0.6); }
+.text-glow-cosmos { text-shadow: 0 0 20px rgba(99, 112, 241, 0.6); }
+
+/* Planet badge */
+.planet-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  border: 1px solid;
+}
+
+/* UEDP omega gauge */
+.omega-gauge {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--cosmos-700); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-400); }
+
+/* Input styles */
+input, select, textarea {
+  background: rgba(10, 11, 30, 0.8) !important;
+  border: 1px solid rgba(99, 112, 241, 0.3) !important;
+  color: #e8e4d9 !important;
+  border-radius: 0.5rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none !important;
+  border-color: rgba(251, 191, 36, 0.5) !important;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1) !important;
+}
+input::placeholder { color: rgba(232, 228, 217, 0.3) !important; }
+select option { background: #0a0b1e; color: #e8e4d9; }
+
+/* Animated ring */
+@keyframes rotateRing {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.ring-rotate { animation: rotateRing 30s linear infinite; }
+.ring-rotate-reverse { animation: rotateRing 20s linear infinite reverse; }
+
+/* Section fade-in */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.6s ease-out forwards; }
+.fade-in-up-delay-1 { animation: fadeInUp 0.6s ease-out 0.1s both; }
+.fade-in-up-delay-2 { animation: fadeInUp 0.6s ease-out 0.2s both; }
+.fade-in-up-delay-3 { animation: fadeInUp 0.6s ease-out 0.3s both; }
+
+/* Tab navigation */
+.tab-active {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(99, 112, 241, 0.2));
+  border-color: rgba(251, 191, 36, 0.5) !important;
+  color: #fbbf24;
+}
+
+/* Intensity badges */
+.intensity-high { background: rgba(251, 191, 36, 0.15); border-color: rgba(251, 191, 36, 0.4); color: #fbbf24; }
+.intensity-medium { background: rgba(99, 112, 241, 0.15); border-color: rgba(99, 112, 241, 0.4); color: #8197f8; }
+.intensity-low { background: rgba(74, 222, 128, 0.15); border-color: rgba(74, 222, 128, 0.4); color: #4ade80; }
+.intensity-critical { background: rgba(248, 113, 113, 0.15); border-color: rgba(248, 113, 113, 0.4); color: #f87171; }
+
+/* Horoscope wheel */
+.horoscope-house {
+  stroke: rgba(251, 191, 36, 0.3);
+  fill: rgba(28, 29, 75, 0.4);
+  transition: fill 0.2s;
+}
+.horoscope-house:hover { fill: rgba(99, 112, 241, 0.3); }
