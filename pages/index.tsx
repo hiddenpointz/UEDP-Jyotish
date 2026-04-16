@@ -154,7 +154,6 @@ export default function Home() {
       setLoading(false);
     }
   }, [birth]);
-
   // ═══════════════════════════
   // RENDER TABS
   // ═══════════════════════════
@@ -957,9 +956,234 @@ export default function Home() {
   mantra: "Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",
   day: "Tuesday",
   donate: "Blanket, sesame, black or neutral items"
+<<<<<<< HEAD
 
    };
   }
   
 },
+
+=======
+   },
+  }
+
+    return (
+      <div>
+        <div className="card">
+          <div className="card-title">Navagraha Parihara — Gem, Mantra, Day, Donation</div>
+          <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>⚠ Blue Sapphire (Neelam) requires a 3-day trial before wearing permanently — consult a qualified Jyotishi. All gems should be energised on the prescribed day in the correct hora.</div>
+          <div className="scroll-x">
+            <table className="data-table">
+              <thead><tr><th>Planet</th><th>Gem</th><th>Puja Day</th><th>Mantra</th><th>Donation</th></tr></thead>
+              <tbody>
+                {Object.entries(PLANET_REM).map(([pn,rem])=>(
+                  <tr key={pn}>
+                    <td><strong>{GLYPH[pn]||""} {pn}</strong></td>
+                    <td style={{fontSize:11}}>{rem.gem}</td>
+                    <td style={{color:"var(--gold2)",fontWeight:600}}>{rem.day}</td>
+                    <td style={{fontSize:10,color:"var(--text3)"}}>{rem.mantra}</td>
+                    <td style={{fontSize:11}}>{rem.donate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {chart.doshas?.length>0&&(
+          <div className="card">
+            <div className="card-title">Dosha-Specific Remedies</div>
+            {chart.doshas.map(d=>(
+              <div key={d.name} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--border)"}}>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--gold2)",marginBottom:4}}>{d.name} — {d.alias}</div>
+                {d.remedies?.map(r=><div key={r.r} className="remedy-line">✦ {r.r}</div>)}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="card">
+          <div className="card-title">General Daily Practices (Atharva Veda)</div>
+          {["Recite Maha Mrityunjaya Mantra 108× daily","Visit Navagraha temple every Saturday","Fast on the day ruled by your Lagna Lord","Donate food to the poor on your Janma Nakshatra day monthly","Feed cows on Saturdays (Saturn propitiation)","Light sesame oil lamp on Saturdays","Recite Hanuman Chalisa on Tuesdays and Saturdays"].map(r=>(
+            <div key={r} className="remedy-line">✦ {r}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderAyanamsa() {
+    if (!chart?.allAyanamsas) return null;
+    const used = chart.ayanamsaUsed;
+    const usedVal = chart.allAyanamsas[used]||0;
+    return (
+      <div className="card">
+        <div className="card-title">Ayanamsa Comparison — All Systems</div>
+        {Object.entries(chart.allAyanamsas).map(([k,v])=>{
+          const ip=k===used;
+          const diff=v-usedVal;
+          const dc=Math.abs(diff)<0.1?"var(--jade2)":Math.abs(diff)<0.3?"var(--gold2)":"var(--crimson2)";
+          return (
+            <div key={k} className="data-row">
+              <span className="lbl" style={{color:ip?"var(--gold2)":undefined,fontWeight:ip?700:400}}>
+                {AYANAMSA_LABELS[k]||k}{ip?" ★ Primary":""}
+              </span>
+              <span style={{fontFamily:"monospace",color:ip?"var(--gold2)":"var(--gold)"}}>
+                {r4(v)}°{!ip&&<span style={{fontSize:10,color:dc,marginLeft:4}}>{diff>=0?"+":""}{r4(diff)}°</span>}
+              </span>
+            </div>
+          );
+        })}
+        {chart.confidence&&(
+          <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--border)"}}>
+            <div style={{fontSize:10,color:"var(--gold3)",fontFamily:"monospace",marginBottom:6}}>UEDP CONFIDENCE LAYER</div>
+            {[["Overall",`${Math.round((chart.confidence.overall||0)*100)}%`],["Mode",chart.confidence.mode],["Ephemeris",chart.confidence.ephemeris?.note||""],["Boundary",chart.confidence.boundaryStability?.note||""]].map(([k,v])=>(
+              <div key={k} className="data-row"><span className="lbl">{k}</span><span className="val" style={{fontSize:11}}>{v}</span></div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // MAIN RENDER
+  // ═══════════════════════════════════════════
+  const renderTab = () => {
+    switch(tab) {
+      case "chart":       return renderChart();
+      case "uedp":        return renderUEDP();
+      case "timeline":    return renderTimeline();
+      case "hora":        return renderHora();
+      case "panchang":    return renderPanchang();
+      case "planets":     return renderPlanets();
+      case "shadbala":    return renderShadbala();
+      case "dasha":       return renderDasha();
+      case "doshas":      return renderDoshas();
+      case "yogas":       return renderYogas();
+      case "medical":     return renderMedical();
+      case "political":   return renderPolitical();
+      case "vargas":      return renderVargas();
+      case "marriage":    return renderMarriage();
+      case "children":    return renderChildren();
+      case "directions":  return renderDirections();
+      case "predictions": return renderPredictions();
+      case "remedies":    return renderRemedies();
+      case "ayanamsa":    return renderAyanamsa();
+      default:            return null;
+    }
+  };
+
+  return (
+    <>
+      <Head>
+        <title>UEDP V5 — Jyotisha Intelligence Engine</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1"/>
+      </Head>
+      <div className="app-shell">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <div className="app-logo">⊕ UEDP <span>V5</span></div>
+          <div className="app-subtitle">G S Ramesh Kumar · Jyotisha Intelligence</div>
+
+          <div className="form-section-title">Birth Details</div>
+          <label className="form-label">Full Name</label>
+          <input className="form-input" value={birth.name} onChange={e=>set("name",e.target.value)} placeholder="Name"/>
+
+          <label className="form-label">Birth Date</label>
+          <div className="grid-3">
+            <input className="form-input" type="number" value={birth.day}   onChange={e=>set("day",+e.target.value)}   placeholder="DD" min={1} max={31}/>
+            <input className="form-input" type="number" value={birth.month} onChange={e=>set("month",+e.target.value)} placeholder="MM" min={1} max={12}/>
+            <input className="form-input" type="number" value={birth.year}  onChange={e=>set("year",+e.target.value)}  placeholder="YYYY"/>
+          </div>
+
+          <label className="form-label">Birth Time</label>
+          <div className="grid-3">
+            <input className="form-input" type="number" value={birth.hour}   onChange={e=>set("hour",+e.target.value)}   placeholder="HH" min={0} max={23}/>
+            <input className="form-input" type="number" value={birth.minute} onChange={e=>set("minute",+e.target.value)} placeholder="MM" min={0} max={59}/>
+            <input className="form-input" type="number" value={birth.second} onChange={e=>set("second",+e.target.value)} placeholder="SS" min={0} max={59}/>
+          </div>
+
+          <label className="form-label">Place</label>
+          <input className="form-input" value={birth.place||""} onChange={e=>set("place",e.target.value)} placeholder="City, Country"/>
+
+          <label className="form-label">Latitude / Longitude</label>
+          <div className="grid-2">
+            <input className="form-input" type="number" step="0.0001" value={birth.latitude}  onChange={e=>set("latitude",+e.target.value)}  placeholder="Lat"/>
+            <input className="form-input" type="number" step="0.0001" value={birth.longitude} onChange={e=>set("longitude",+e.target.value)} placeholder="Lon"/>
+          </div>
+
+          <label className="form-label">Timezone Offset (IST = 5.5)</label>
+          <input className="form-input" type="number" step="0.5" value={birth.timezone} onChange={e=>set("timezone",+e.target.value)}/>
+
+          <div className="form-section-title" style={{marginTop:10}}>Quick Cities</div>
+          <div className="grid-2">
+            {CITIES.map(c=>(
+              <button key={c.name} className="city-btn" onClick={()=>setBirth(b=>({...b,latitude:c.lat,longitude:c.lon,place:c.name}))}>
+                {c.name}
+              </button>
+            ))}
+          </div>
+
+          <div className="form-section-title" style={{marginTop:10}}>Ayanamsa</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
+            {Object.entries(AYANAMSA_LABELS).map(([k,v])=>(
+              <button key={k} className={`ayan-btn ${birth.ayanamsa===k?"active":""}`} onClick={()=>set("ayanamsa",k)}>
+                {v.split(" ")[0]}
+              </button>
+            ))}
+          </div>
+
+          <button className="compute-btn" onClick={compute} disabled={loading}>
+            {loading ? "⏳ Computing…" : "⊕ Compute Chart"}
+          </button>
+
+          {chart&&(
+            <div className="sidebar-info">
+              <div><span style={{color:"var(--text3)"}}>Lagna: </span><strong style={{color:"var(--gold)"}}>{chart.lagna.rashi}</strong></div>
+              <div><span style={{color:"var(--text3)"}}>Nakshatra: </span>{chart.panchang.nakshatra}</div>
+              <div><span style={{color:"var(--text3)"}}>Mahadasha: </span><strong style={{color:"var(--gold2)"}}>{chart.dasha?.current?.mahadasha}</strong></div>
+              <div><span style={{color:"var(--text3)"}}>Ω: </span><span style={{color:omegaColor(chart.uedp.omega),fontFamily:"monospace"}}>{r4(chart.uedp.omega)}</span></div>
+            </div>
+          )}
+        </aside>
+
+        {/* Main content */}
+        <main className="main-content">
+          {/* Tab bar */}
+          <div className="tab-bar">
+            {TABS.map(t=>(
+              <button key={t.id} className={`tab-btn ${tab===t.id?"active":""}`} onClick={()=>setTab(t.id)}>
+                <span className="tab-icon">{t.icon}</span>
+                <span className="tab-label">{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Content area */}
+          <div className="content-area">
+            {error && <div className="status-err">⚠ {error}</div>}
+            {loading && (
+              <div className="loading-state">
+                <div className="loading-spinner"/>
+                <div style={{color:"var(--gold)",fontFamily:"monospace",marginTop:12}}>⏳ Computing chart — Swiss Ephemeris + UEDP v5…</div>
+              </div>
+            )}
+            {!loading && !chart && !error && (
+              <div className="empty-state">
+                <div style={{fontSize:48,marginBottom:16}}>⊕</div>
+                <div style={{fontSize:20,color:"var(--gold)",marginBottom:8}}>UEDP V5 Jyotisha Intelligence Engine</div>
+                <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8,maxWidth:500}}>
+                  G S Ramesh Kumar — Universal Dynamics Emergence Protocol v5<br/>
+                  Enter birth details in the sidebar and click <strong style={{color:"var(--gold)"}}>Compute Chart</strong>.<br/>
+                  All {TABS.length} analytical tabs will populate with complete Vedic chart data.<br/>
+                  <span style={{fontSize:11,color:"var(--text3)"}}>Sources: Surya Siddhanta · BPHS · Phaladeepika · Muhurta Chintamani · Atharva Veda</span>
+                </div>
+              </div>
+            )}
+            {!loading && chart && renderTab()}
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}
 
