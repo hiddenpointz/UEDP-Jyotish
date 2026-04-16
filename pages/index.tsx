@@ -952,4 +952,11 @@ export default function Home() {
       Venus:{gem:"Diamond/White Sapphire",mantra:"Om Draam Dreem Draum Sah Shukraya Namah (20000×)",day:"Friday",donate:"White items, sugar, white cloth"},
       Saturn:{gem:"Blue Sapphire (Neelam) — TRIAL 3 DAYS",mantra:"Om Praam Preem Praum Sah Shanaischaraya Namah (23000×)",day:"Saturday",donate:"Black sesame, iron, blue/black cloth"},
       Rahu:{gem:"Hessonite (Gomed) — silver",mantra:"Om Bhraam Bhreem Bhraum Sah Rahave Namah (18000×)",day:"Saturday",donate:"Black/blue items, black gram"},
-      Ketu:{gem:"Cat's Eye (Lehsunia)",mantra:"Om Sraam Sreem Sra
+      Ketu: {
+  gem: "Cat's Eye (Lehsunia)",
+  mantra: "Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",
+  day: "Tuesday",
+  donate: "Blanket, sesame, black or neutral items"
+   },
+  }
+  
