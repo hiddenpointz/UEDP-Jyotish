@@ -1,21 +1,19 @@
 import React from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Area, AreaChart } from "recharts";
-import type { UEDPMetrics } from "../lib/uedpEngine";
+import type { UEDPMetrics, UEDPTimelinePoint } from "../lib/uedpEngine";
+import { OMEGA_CRIT } from "../lib/uedpEngine";
 
 interface Props {
   uedp: UEDPMetrics;
-  timeline?: { date: string; omega: number; isStable: boolean }[];
+  timeline?: UEDPTimelinePoint[];
 }
 
 export default function UEDPDashboard({ uedp, timeline }: Props) {
-  const omegaPct = Math.round(uedp.omega * 100);
-  const critical = Math.round(uedp.omegaCritical * 100);
   const isStable = uedp.isStable;
 
   // Gauge arc
   const radius = 70;
   const circumference = Math.PI * radius; // half circle
-  const dashOffset = circumference * (1 - uedp.omega);
 
   return (
     <div className="space-y-6">
@@ -155,7 +153,7 @@ export default function UEDPDashboard({ uedp, timeline }: Props) {
                 itemStyle={{ color: "#4ade80", fontSize: 10 }}
                 formatter={(v: number) => [v.toFixed(3), "Ω"]}
               />
-              <ReferenceLine y={1 / Math.E} stroke="#f59e0b" strokeDasharray="4 4"
+              <ReferenceLine y={OMEGA_CRIT} stroke="#f59e0b" strokeDasharray="4 4"
                 label={{ value: "1/e", position: "right", fill: "#f59e0b", fontSize: 9 }} />
               <Area type="monotone" dataKey="omega" stroke="#4ade80" strokeWidth={1.5}
                 fill="url(#omegaGrad)" dot={false} activeDot={{ r: 3, fill: "#4ade80" }} />

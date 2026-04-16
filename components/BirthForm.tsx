@@ -33,6 +33,8 @@ export default function BirthForm({ onSubmit, loading }: Props) {
     longitude: 80.2707,
     timezone: 5.5,
     gender: "male",
+    place: "Chennai",
+    ayanamsa: "lahiri",
   });
 
   const set = (k: keyof BirthData, v: string | number) =>
@@ -140,7 +142,28 @@ export default function BirthForm({ onSubmit, loading }: Props) {
         </select>
       </div>
 
-      {/* Quick presets */}
+      {/* Place */}
+      <div>
+        <label className="block text-xs font-display tracking-widest text-gold-400 mb-1">BIRTH PLACE (NAME)</label>
+        <input className={field} type="text" placeholder="e.g. Chennai, India"
+          value={form.place || ""} onChange={e => set("place", e.target.value)} />
+      </div>
+
+      {/* Ayanamsa */}
+      <div>
+        <label className="block text-xs font-display tracking-widest text-gold-400 mb-1">AYANAMSA SYSTEM</label>
+        <select className={field} value={form.ayanamsa || "lahiri"}
+          onChange={e => set("ayanamsa", e.target.value)}>
+          <option value="lahiri">Lahiri (IAU) — Default</option>
+          <option value="raman">B.V. Raman</option>
+          <option value="kp">KP (Krishnamurti)</option>
+          <option value="yukteshwar">Yukteshwar</option>
+          <option value="true_chitrapaksha">True Chitra Paksha</option>
+          <option value="jn_bhasin">J.N. Bhasin</option>
+        </select>
+      </div>
+
+
       <div>
         <p className="text-xs font-display tracking-widest text-cosmos-400 mb-2">QUICK LOCATION PRESETS</p>
         <div className="flex flex-wrap gap-2">
@@ -152,7 +175,7 @@ export default function BirthForm({ onSubmit, loading }: Props) {
             { name: "Kolkata", lat: 22.5726, lon: 88.3639, tz: 5.5 },
           ].map(city => (
             <button key={city.name} type="button"
-              onClick={() => setForm(f => ({ ...f, latitude: city.lat, longitude: city.lon, timezone: city.tz }))}
+              onClick={() => setForm(f => ({ ...f, latitude: city.lat, longitude: city.lon, timezone: city.tz, place: city.name }))}
               className="px-3 py-1 text-xs font-mono border border-cosmos-700 rounded-full hover:border-gold-400 hover:text-gold-400 transition-all">
               {city.name}
             </button>

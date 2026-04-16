@@ -5,8 +5,7 @@ interface Props {
   chart: HoroscopeData;
 }
 
-const SIGNS = ["Ar","Ta","Ge","Ca","Le","Vi","Li","Sc","Sa","Ca","Aq","Pi"];
-const SIGN_FULL = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"];
+const SIGNS = ["Ar","Ta","Ge","Ca","Le","Vi","Li","Sc","Sa","Cp","Aq","Pi"];
 const SIGN_COLORS = [
   "#ef4444","#84cc16","#06b6d4","#f59e0b",
   "#f97316","#10b981","#a78bfa","#f43f5e",

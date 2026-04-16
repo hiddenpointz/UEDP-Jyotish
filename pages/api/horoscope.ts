@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
-  computeHoroscope, detectDoshas, generatePariharas,
-  generatePredictions, computeOmegaTimeline,
+  generateFullChart,
+  detectDoshas,
+  computePariharas,
+  buildPredictions,
+  computeUEDPTimeline,
   type BirthData,
 } from "../../lib/uedpEngine";
 
@@ -14,27 +17,46 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const birth: BirthData = req.body;
 
     // Validate required fields
-    const required = ["day", "month", "year", "hour", "minute", "latitude", "longitude", "timezone"];
-    for (const field of required) {
-      if (birth[field as keyof BirthData] === undefined) {
-        return res.status(400).json({ error: `Missing field: ${field}` });
-      }
+    if (!birth || !birth.year || !birth.month || !birth.day) {
+      return res.status(400).json({ error: "Invalid birth data" });
     }
 
-    const chart = computeHoroscope(birth);
-    const doshas = detectDoshas(chart);
-    const pariharas = generatePariharas(doshas, chart);
-    const predictions = generatePredictions(birth, chart);
-    const currentYear = new Date().getFullYear();
-    const timeline = computeOmegaTimeline(
-      birth,
-      Math.max(birth.year, currentYear - 10),
-      currentYear + 15
+    // Generate full chart (replaces old computeHoroscope)
+    const chart = generateFullChart(birth);
+
+    // Doshas are already computed inside generateFullChart,
+    // but you can re-derive extras here if needed:
+    const doshas = detectDoshas(chart.planets, chart.lagna.rashi);
+
+    // Pariharas (replaces old generatePariharas)
+    const pariharas = computePariharas(doshas);
+
+    // Rich predictions (replaces old generatePredictions)
+    const predictions = buildPredictions(
+      chart.predictions,
+      chart.dasha,
+      chart.planets,
+      chart.strengths,
+      chart.uedp
     );
 
-    res.status(200).json({ chart, doshas, pariharas, predictions, timeline });
+    // UEDP timeline (replaces old computeOmegaTimeline)
+    const nowYear = new Date().getFullYear();
+    const uedpTimeline = computeUEDPTimeline(
+      birth,
+      Math.max(birth.year, nowYear - 10),
+      nowYear + 10
+    );
+
+    return res.status(200).json({
+      ...chart,
+      doshas,
+      pariharas,
+      richPredictions: predictions,
+      uedpTimeline,
+    });
   } catch (err: unknown) {
-    console.error("Horoscope API error:", err);
-    res.status(500).json({ error: String(err) });
+    const message = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: message });
   }
 }

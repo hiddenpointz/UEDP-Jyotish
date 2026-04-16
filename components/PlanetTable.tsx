@@ -7,6 +7,7 @@ interface Props {
   ascendantSign: string;
   ascendantDegree: number;
   ayanamsa: number;
+  ayanamsaName?: string;
 }
 
 const PLANET_COLORS: Record<string, string> = {
@@ -34,7 +35,7 @@ function getDignity(planet: string, sign: string): { label: string; color: strin
   return { label: d, color: "#8197f8" };
 }
 
-export default function PlanetTable({ planets, houses, ascendantSign, ascendantDegree, ayanamsa }: Props) {
+export default function PlanetTable({ planets, houses, ascendantSign, ascendantDegree, ayanamsa, ayanamsaName }: Props) {
   return (
     <div className="space-y-4">
       {/* Ascendant info */}
@@ -43,7 +44,7 @@ export default function PlanetTable({ planets, houses, ascendantSign, ascendantD
         <div>
           <p className="text-xs font-display tracking-widest text-cosmos-400 mb-0.5">ASCENDANT (LAGNA)</p>
           <p className="font-display text-xl text-gold-300">{ascendantSign} {ascendantDegree.toFixed(2)}°</p>
-          <p className="text-xs font-mono text-cosmos-400">Lahiri Ayanamsa: {ayanamsa.toFixed(4)}°</p>
+          <p className="text-xs font-mono text-cosmos-400">{ayanamsaName || "Lahiri"} Ayanamsa: {ayanamsa.toFixed(4)}°</p>
         </div>
       </div>
 
@@ -63,7 +64,18 @@ export default function PlanetTable({ planets, houses, ascendantSign, ascendantD
             </thead>
             <tbody>
               {planets.map(p => {
-                const dignity = getDignity(p.name, p.signName);
+                const dignity = p.dignity
+                  ? (() => {
+                      const d = p.dignity!;
+                      if (d === "exalted")      return { label: "Exalted",      color: "#4ade80" };
+                      if (d === "moolatrikona") return { label: "Moolatrikona", color: "#fbbf24" };
+                      if (d === "own")          return { label: "Own Sign",     color: "#fbbf24" };
+                      if (d === "debilitated")  return { label: "Debilitated",  color: "#f87171" };
+                      if (d === "friend")       return { label: "Friend",       color: "#8197f8" };
+                      if (d === "enemy")        return { label: "Enemy",        color: "#f97316" };
+                      return { label: d.charAt(0).toUpperCase() + d.slice(1), color: "rgba(232,228,217,0.4)" };
+                    })()
+                  : getDignity(p.name, p.signName);
                 const color = PLANET_COLORS[p.name] || "#e8e4d9";
                 return (
                   <tr key={p.name} className="border-b border-cosmos-900/50 hover:bg-cosmos-900/30 transition-colors">

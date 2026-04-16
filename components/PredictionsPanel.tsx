@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { Prediction } from "../lib/uedpEngine";
+import { OMEGA_CRIT } from "../lib/uedpEngine";
 
 interface Props {
   predictions: Prediction[];
@@ -77,7 +78,7 @@ export default function PredictionsPanel({ predictions }: Props) {
                     className="h-full rounded-full transition-all duration-500"
                     style={{
                       width: `${Math.min(pred.omegaAtPeriod * 100, 100)}%`,
-                      background: pred.omegaAtPeriod >= 1/Math.E ? "#4ade80" : "#f87171"
+                      background: pred.omegaAtPeriod >= OMEGA_CRIT ? "#4ade80" : "#f87171"
                     }} />
                 </div>
                 <span className="text-xs font-mono text-cosmos-500 w-8">
@@ -141,7 +142,7 @@ export default function PredictionsPanel({ predictions }: Props) {
                 <div className="bg-cosmos-950/80 rounded-lg p-3 border border-cosmos-800">
                   <p className="text-xs font-mono text-cosmos-500">
                     UEDP: Ω = {pred.omegaAtPeriod.toFixed(3)} | Period coherence{" "}
-                    {pred.omegaAtPeriod >= 1/Math.E ? "≥ 1/e → STABLE" : "< 1/e → CAUTION"}
+                    {pred.omegaAtPeriod >= OMEGA_CRIT ? "≥ 1/e → STABLE" : "< 1/e → CAUTION"}
                   </p>
                 </div>
               </div>

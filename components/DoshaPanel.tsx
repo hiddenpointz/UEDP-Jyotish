@@ -54,6 +54,9 @@ export default function DoshaPanel({ doshas, pariharas }: Props) {
                       <h3 className="font-display text-sm" style={{ color: severityColor[d.severity] }}>
                         {d.name}
                       </h3>
+                      {d.alias && d.alias !== d.name && (
+                        <span className="text-xs font-mono text-cosmos-500">({d.alias})</span>
+                      )}
                       {d.isLatent && (
                         <span className="text-xs px-2 py-0.5 border border-cosmos-600 rounded-full text-cosmos-400 font-mono">
                           LATENT
@@ -61,6 +64,9 @@ export default function DoshaPanel({ doshas, pariharas }: Props) {
                       )}
                     </div>
                     <p className="text-xs font-mono text-cosmos-400">{d.source}</p>
+                    {d.placement && (
+                      <p className="text-xs font-body text-cosmos-500 mt-0.5">{d.placement}</p>
+                    )}
                   </div>
                   <div className="text-right flex-shrink-0">
                     <span className="planet-badge" style={{
@@ -70,8 +76,9 @@ export default function DoshaPanel({ doshas, pariharas }: Props) {
                     }}>
                       {d.severity.toUpperCase()}
                     </span>
-                    <div className="mt-1 flex gap-1 justify-end">
-                      {d.planets.map(p => (
+                    <div className="mt-1 text-xs font-mono text-cosmos-400">Strength: {d.strength}</div>
+                    <div className="mt-1 flex gap-1 justify-end flex-wrap">
+                      {(d.planets || []).map(p => (
                         <span key={p} className="text-xs font-mono text-cosmos-400">{p}</span>
                       ))}
                     </div>
@@ -80,20 +87,37 @@ export default function DoshaPanel({ doshas, pariharas }: Props) {
 
                 {selected === d.name && (
                   <div className="border-t border-cosmos-800 p-4 space-y-3 fade-in-up">
-                    <div>
-                      <p className="text-xs font-display tracking-widest text-cosmos-400 mb-2">HOUSES AFFECTED</p>
-                      <div className="flex gap-2">
-                        {d.houses.map(h => (
-                          <span key={h} className="w-7 h-7 flex items-center justify-center border border-cosmos-700 rounded text-xs font-mono text-cosmos-300">
-                            {h}
-                          </span>
-                        ))}
+                    {d.description && (
+                      <div className="bg-cosmos-900/40 rounded p-2 border border-cosmos-800">
+                        <p className="text-xs font-body text-cosmos-300 leading-relaxed">{d.description}</p>
                       </div>
-                    </div>
+                    )}
+                    {(d.houses || []).length > 0 && (
+                      <div>
+                        <p className="text-xs font-display tracking-widest text-cosmos-400 mb-2">HOUSES AFFECTED</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {d.houses.map(h => (
+                            <span key={h} className="w-7 h-7 flex items-center justify-center border border-cosmos-700 rounded text-xs font-mono text-cosmos-300">
+                              {h}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {(d.lifeAreas || []).length > 0 && (
+                      <div>
+                        <p className="text-xs font-display tracking-widest text-cosmos-400 mb-2">LIFE AREAS</p>
+                        <div className="flex gap-2 flex-wrap">
+                          {d.lifeAreas.map(la => (
+                            <span key={la} className="px-2 py-0.5 text-xs font-mono bg-cosmos-900 border border-cosmos-700 rounded text-cosmos-300">{la}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs font-display tracking-widest text-cosmos-400 mb-2">EFFECTS</p>
                       <ul className="space-y-1">
-                        {d.effects.map((e, i) => (
+                        {(d.effects || []).map((e, i) => (
                           <li key={i} className="text-sm font-body flex gap-2">
                             <span style={{ color: severityColor[d.severity] }}>◆</span>
                             <span className="text-e8e4d9/70">{e}</span>
