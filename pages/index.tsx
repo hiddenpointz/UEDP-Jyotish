@@ -957,6 +957,6 @@ export default function Home() {
   mantra: "Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",
   day: "Tuesday",
   donate: "Blanket, sesame, black or neutral items"
-   },
+   };
   }
   
