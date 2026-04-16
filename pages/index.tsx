@@ -943,29 +943,21 @@ export default function Home() {
   function renderRemedies() {
     if (!chart) return null;
     const PLANET_REM: Record<string,{gem:string;mantra:string;day:string;donate:string}> = {
-      Sun:{gem:"Ruby (Manikya) — gold",mantra:"Om Hraam Hreem Hraum Sah Suryaya Namah (6000×)",day:"Sunday",donate:"Wheat, jaggery, copper, red cloth"},
-      Moon:{gem:"Pearl (Moti) — silver",mantra:"Om Shraam Shreem Shraum Sah Chandraya Namah (11000×)",day:"Monday",donate:"Rice, milk, white items, silver"},
-      Mars:{gem:"Red Coral (Moonga) — copper",mantra:"Om Kraam Kreem Kraum Sah Bhaumaya Namah (7000×)",day:"Tuesday",donate:"Red lentils, copper, red cloth"},
-      Mercury:{gem:"Emerald (Panna) — gold",mantra:"Om Braam Breem Braum Sah Budhaya Namah (17000×)",day:"Wednesday",donate:"Green moong, books, green cloth"},
-      Jupiter:{gem:"Yellow Sapphire (Pukhraj) — gold",mantra:"Om Graam Greem Graum Sah Guruve Namah (19000×)",day:"Thursday",donate:"Yellow items, turmeric, chana dal"},
-      Venus:{gem:"Diamond/White Sapphire",mantra:"Om Draam Dreem Draum Sah Shukraya Namah (20000×)",day:"Friday",donate:"White items, sugar, white cloth"},
-      Saturn:{gem:"Blue Sapphire (Neelam) — TRIAL 3 DAYS",mantra:"Om Praam Preem Praum Sah Shanaischaraya Namah (23000×)",day:"Saturday",donate:"Black sesame, iron, blue/black cloth"},
-      Rahu:{gem:"Hessonite (Gomed) — silver",mantra:"Om Bhraam Bhreem Bhraum Sah Rahave Namah (18000×)",day:"Saturday",donate:"Black/blue items, black gram"},
-      Ketu: {
-  gem: "Cat's Eye (Lehsunia)",
-  mantra: "Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",
-  day: "Tuesday",
-  donate: "Blanket, sesame, black or neutral items"
-<<<<<<< HEAD
-
-   };
+  Sun:{gem:"Ruby (Manikya) — gold",mantra:"Om Hraam Hreem Hraum Sah Suryaya Namah (6000×)",day:"Sunday",donate:"Wheat, jaggery, copper, red cloth"},
+  Moon:{gem:"Pearl (Moti) — silver",mantra:"Om Shraam Shreem Shraum Sah Chandraya Namah (11000×)",day:"Monday",donate:"Rice, milk, white items, silver"},
+  Mars:{gem:"Red Coral (Moonga) — copper",mantra:"Om Kraam Kreem Kraum Sah Bhaumaya Namah (7000×)",day:"Tuesday",donate:"Red lentils, copper, red cloth"},
+  Mercury:{gem:"Emerald (Panna) — gold",mantra:"Om Braam Breem Braum Sah Budhaya Namah (17000×)",day:"Wednesday",donate:"Green moong, books, green cloth"},
+  Jupiter:{gem:"Yellow Sapphire (Pukhraj) — gold",mantra:"Om Graam Greem Graum Sah Guruve Namah (19000×)",day:"Thursday",donate:"Yellow items, turmeric, chana dal"},
+  Venus:{gem:"Diamond/White Sapphire",mantra:"Om Draam Dreem Draum Sah Shukraya Namah (20000×)",day:"Friday",donate:"White items, sugar, white cloth"},
+  Saturn:{gem:"Blue Sapphire (Neelam) — TRIAL 3 DAYS",mantra:"Om Praam Preem Praum Sah Shanaischaraya Namah (23000×)",day:"Saturday",donate:"Black sesame, iron, blue/black cloth"},
+  Rahu:{gem:"Hessonite (Gomed) — silver",mantra:"Om Bhraam Bhreem Bhraum Sah Rahave Namah (18000×)",day:"Saturday",donate:"Black/blue items, black gram"},
+  Ketu:{
+    gem:"Cat's Eye (Lehsunia)",
+    mantra:"Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",
+    day:"Tuesday",
+    donate:"Blanket, sesame, black or neutral items"
   }
-  
-},
-
-=======
-   },
-  }
+};
 
     return (
       <div>
@@ -1186,4 +1178,5 @@ export default function Home() {
     </>
   );
 }
+
 
