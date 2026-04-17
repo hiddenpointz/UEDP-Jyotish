@@ -30,10 +30,10 @@
  *   UI components = display
  * ─────────────────────────────────────────────────────────────────
  */
+// getChartAnchor — returns the lagna index from ChartData.
 
+import { generateFullChart, RASHIS, RASHI_EN, GLYPH } from "../../lib/uedpEngine";
 import type { ChartData, PlanetData } from "../../lib/uedpEngine";
-import { RASHIS, RASHI_EN, GLYPH } from "../../lib/uedpEngine";
-
 // ═══════════════════════════════════════════
 // TYPES — Projection layer
 // ═══════════════════════════════════════════
@@ -99,10 +99,10 @@ export interface ChartProjection {
 // ═══════════════════════════════════════════
 
 /**
- * getChartAnchor — returns the lagna index from ChartData.
  * This is the ONLY function allowed to determine cell rotation.
  * All three projection functions call this, nothing else.
  */
+import { generateFullChart } from "../../lib/uedpEngine";
 export function getChartAnchor(chart: ChartData): {
   rashiName:    string;
   rashiIndex:   number;
@@ -416,15 +416,15 @@ function attachUEDPScores(
     9:"spiritual", 10:"career", 11:"wealth", 12:"spiritual",
   };
   for (const cell of cells) {
-    const h = cell.houseNumber || 1;
-    const domKey = domainHouseMap[h];
-    if (domKey && chart.uedp.domainOmega) {
-      // Only set if not already used for bhava overlay (East Indian)
-      if (cell.uedpScore === undefined) {
-        cell.uedpScore = chart.uedp.domainOmega[domKey] ?? chart.uedp.omega;
-      }
-    }
-  }
+  const h = cell.houseNumber || 1;
+  const domKey = domainHouseMap[h];
+
+  if (domKey && cell.uedpScore === undefined) {
+    const domainOmega = (chart.uedp as any).domainOmega;
+    cell.uedpScore = domainOmega?.[domKey] ?? chart.uedp.omega;
+   }
+ }
+         
 }
 
 // ═══════════════════════════════════════════
@@ -646,4 +646,32 @@ export function dignityColor(dignity: string): string {
 export function isBlankCell(projection: ChartProjection, cellIndex: number): boolean {
   if (projection.style !== "south") return false;
   return SOUTH_BLANK_CELLS.has(cellIndex);
+}
+export default function handler(req, res) {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const { birth, style } = req.body;
+
+    // 1. Generate chart (you already have this somewhere)
+    const chart = generateFullChart(birth);
+
+    // 2. Project chart (you already have this)
+    const projection = projectChart(chart, style || "south");
+
+    // 3. Optional debug
+    const debug = buildDebugReport(projection, chart);
+
+    return res.status(200).json({
+      chart,
+      projection,
+      debug,
+    });
+
+  } catch (err) {
+    console.error("API /api/chart error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 }

@@ -1897,7 +1897,12 @@ export function computeDirections(planets:Record<string,PlanetData>, lagna:{rash
 // CONFIDENCE
 // ═══════════════════════════════════════════
 
-export function computeConfidence(allAyanamsas:Record<string,number>, ascLon:number): ConfidenceData {
+export function computeConfidence(
+  allAyanamsas: Record<string, number>,
+  ascLon: number,
+  ephemerisSource: string = "vsop87"
+): ConfidenceData {
+
   const vals=Object.values(allAyanamsas);
   const spread=vals.length?Math.max(...vals)-Math.min(...vals):0.5;
   const degIn=ascLon%30;
@@ -1906,7 +1911,17 @@ export function computeConfidence(allAyanamsas:Record<string,number>, ascLon:num
   const boundS=boundary?0.5:1.0;
   const interpS=boundary?0.6:0.9;
   const overall=Math.round((0.25*0.99+0.35*agreeS+0.25*boundS+0.15*interpS)*1e4)/1e4;
-  const mode=overall>=0.85?"strict":overall>=0.65?"balanced":"exploratory";
+  let src = "vsop87" as string;
+
+const ephemerisScore =
+  src === "swiss_ephemeris" ? 0.99 :
+  src === "vsop87" ? 0.75 :
+  0.50;
+
+const mode =
+  overall * ephemerisScore >= 0.9 ? "strict" :
+  overall * ephemerisScore >= 0.7 ? "balanced" :
+  "exploratory";
   return {
     overall,mode,
     ephemeris:{
