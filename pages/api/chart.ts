@@ -102,7 +102,6 @@ export interface ChartProjection {
  * This is the ONLY function allowed to determine cell rotation.
  * All three projection functions call this, nothing else.
  */
-import { generateFullChart } from "../../lib/uedpEngine";
 export function getChartAnchor(chart: ChartData): {
   rashiName:    string;
   rashiIndex:   number;
@@ -647,8 +646,9 @@ export function isBlankCell(projection: ChartProjection, cellIndex: number): boo
   if (projection.style !== "south") return false;
   return SOUTH_BLANK_CELLS.has(cellIndex);
 }
-export default function handler(req, res) {
-  try {
+import type { NextApiRequest, NextApiResponse } from "next";
+
+export default function handler(req: NextApiRequest, res: NextApiResponse) {  try {
     if (req.method !== "POST") {
       return res.status(405).json({ error: "Method not allowed" });
     }
