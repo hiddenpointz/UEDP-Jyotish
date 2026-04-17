@@ -23,7 +23,7 @@
 
 import type { NextApiRequest, NextApiResponse } from "next";
 import type { BirthData, ChartData }             from "../../lib/uedpEngine";
-import type { ChartStyle, ChartProjection }       from "../../lib/chartProjection";
+import type { ChartStyle, ChartProjection, ChartDebugReport } from "../../lib/chartProjection";
 import { generateFullChart }                      from "../../lib/uedpEngine";
 import { projectChart, buildDebugReport }         from "../../lib/chartProjection";
 
@@ -32,7 +32,7 @@ import { projectChart, buildDebugReport }         from "../../lib/chartProjectio
 interface SuccessResponse {
   chart:      ChartData;
   projection: ChartProjection;
-  debug:      ReturnType<typeof buildDebugReport>;
+  debug:      ChartDebugReport;
 }
 
 interface ErrorResponse {
@@ -191,7 +191,7 @@ export default function handler(
   }
 
   // ── 6. Debug report ───────────────────────────────────────────────────────
-  let debug: ReturnType<typeof buildDebugReport>;
+  let debug: ChartDebugReport;
   try {
     debug = buildDebugReport(projection, chart);
   } catch (debugErr) {

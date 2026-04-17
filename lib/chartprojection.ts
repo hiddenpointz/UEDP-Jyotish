@@ -32,8 +32,8 @@
  */
 // getChartAnchor — returns the lagna index from ChartData.
 
-import { RASHIS, RASHI_EN, GLYPH } from "../../lib/uedpEngine";
-import type { ChartData, PlanetData } from "../../lib/uedpEngine";
+import { RASHIS, RASHI_EN, GLYPH } from "./uedpEngine";
+import type { ChartData, PlanetData } from "./uedpEngine";
 // ═══════════════════════════════════════════
 // TYPES — Projection layer
 // ═══════════════════════════════════════════
