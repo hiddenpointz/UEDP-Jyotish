@@ -684,11 +684,12 @@ export function isBlankCell(projection: ChartProjection, cellIndex: number): boo
 
 // ─── Response shapes ────────────────────────────────────────────────────────
 
-interface SuccessResponse {
-  chart:      ChartData;
+// Frontend accesses chart fields directly on the response (setChart(data))
+// so we spread ChartData at top level and attach projection/debug as extras.
+type SuccessResponse = ChartData & {
   projection: ChartProjection;
   debug:      ChartDebugReport;
-}
+};
 
 interface ErrorResponse {
   error:   string;
@@ -706,7 +707,13 @@ function parseBirthData(raw: unknown): { data: BirthData; warnings: string[] } {
   const warnings: string[] = [];
 
   if (!raw || typeof raw !== "object") {
-    throw new Error("Request body must contain a 'birth' object.");
+    // Body might be empty; parseBirthData will use safe defaults for all fields
+    return { data: {
+      name: "Unknown", day: 1, month: 1, year: 1970,
+      hour: 0, minute: 0, second: 0,
+      latitude: 13.0827, longitude: 80.2707, timezone: 5.5,
+      gender: "other" as const, place: "", ayanamsa: "lahiri",
+    }, warnings: ["Empty body received — using all defaults"] };
   }
 
   const r = raw as Record<string, unknown>;
@@ -799,8 +806,15 @@ export default function handler(
   let birthData: BirthData;
   let inputWarnings: string[] = [];
 
+  // Frontend sends birth directly as the body (not wrapped in {birth:...})
+  // Also support wrapped format {birth:..., style:...} for API clients
+  const bodyObj = body as Record<string, unknown>;
+  const birthRaw = (bodyObj.birth && typeof bodyObj.birth === "object")
+    ? bodyObj.birth          // wrapped: { birth: {...}, style: "south" }
+    : body;                  // direct:  { name, day, month, ... }
+
   try {
-    const parsed = parseBirthData((body as Record<string, unknown>).birth);
+    const parsed = parseBirthData(birthRaw);
     birthData     = parsed.data;
     inputWarnings = parsed.warnings;
   } catch (validationErr) {
@@ -810,7 +824,7 @@ export default function handler(
     });
   }
 
-  const style = parseStyle((body as Record<string, unknown>).style);
+  const style = parseStyle(bodyObj.style);
 
   // ── 4. Generate chart ─────────────────────────────────────────────────────
   let chart: ChartData;
@@ -868,5 +882,11 @@ export default function handler(
     console.warn("API /api/chart — input warnings:", inputWarnings);
   }
 
-  return res.status(200).json({ chart, projection, debug });
+  // Return chart fields at top level so frontend can do setChart(data) directly.
+  // projection and debug are attached as extra fields for components that need them.
+  return res.status(200).json({
+    ...chart,
+    projection,
+    debug,
+  } as any);
 }
