@@ -84,7 +84,7 @@ function OmegaGauge({ omega }: { omega: number }) {
 // ═══════════════════════════════════════════
 // TAB DEFINITIONS
 // ═══════════════════════════════════════════
-type TabId = "chart"|"uedp"|"timeline"|"hora"|"panchang"|"planets"|"shadbala"|"dasha"|"doshas"|"yogas"|"medical"|"political"|"vargas"|"marriage"|"children"|"directions"|"predictions"|"remedies"|"ayanamsa";
+type TabId = "chart"|"uedp"|"timeline"|"hora"|"panchang"|"planets"|"shadbala"|"dasha"|"doshas"|"yogas"|"medical"|"political"|"vargas"|"marriage"|"children"|"directions"|"predictions"|"remedies"|"ayanamsa"|"transits"|"scenario"|"muhurta"|"match"|"gandas"|"location"|"fullTimeline"|"pariharas";
 
 const TABS: {id:TabId;label:string;icon:string}[] = [
   {id:"chart",label:"Chart",icon:"⊕"},
@@ -106,6 +106,14 @@ const TABS: {id:TabId;label:string;icon:string}[] = [
   {id:"predictions",label:"Predictions",icon:"🔮"},
   {id:"remedies",label:"Remedies",icon:"🙏"},
   {id:"ayanamsa",label:"Ayanamsa",icon:"◎"},
+  {id:"transits",label:"Transits",icon:"🌐"},
+  {id:"scenario",label:"Scenario",icon:"⚖️"},
+  {id:"muhurta",label:"Muhurta",icon:"🕰️"},
+  {id:"match",label:"Match",icon:"💞"},
+  {id:"gandas",label:"Gandas",icon:"⚠️"},
+  {id:"location",label:"Location",icon:"📍"},
+  {id:"fullTimeline",label:"Life Arc",icon:"🗓️"},
+  {id:"pariharas",label:"Pariharas",icon:"🪔"},
 ];
 
 const CITIES = [
@@ -137,8 +145,44 @@ export default function Home() {
     name:"",day:14,month:4,year:1969,hour:10,minute:30,second:0,
     latitude:13.0827,longitude:80.2707,timezone:5.5,place:"Chennai",ayanamsa:"lahiri"
   });
+  // Decisional engine state
+  const [decisional, setDecisional] = useState<Record<string,any>|null>(null);
+  const [decisionalLoading, setDecisionalLoading] = useState(false);
+  // Scenario / Muhurta inputs
+  const [scenarioDate, setScenarioDate] = useState<string>(new Date().toISOString().slice(0,10));
+  const [scenarioDomain, setScenarioDomain] = useState<string>("career");
+  const [scenarioAction, setScenarioAction] = useState<string>("Proposed decision");
+  const [muhurtaEnd, setMuhurtaEnd] = useState<string>(new Date(Date.now()+60*86400000).toISOString().slice(0,10));
+  // Match partner
+  const [partnerBirth, setPartnerBirth] = useState<Partial<BirthData>>({name:"",day:1,month:1,year:1970,hour:0,minute:0,second:0,latitude:13.0827,longitude:80.2707,timezone:5.5});
+  const [locationList] = useState([
+    {lat:28.6139,lon:77.2090,name:"Delhi",timezone:5.5},
+    {lat:19.0760,lon:72.8777,name:"Mumbai",timezone:5.5},
+    {lat:13.0827,lon:80.2707,name:"Chennai",timezone:5.5},
+    {lat:12.9716,lon:77.5946,name:"Bengaluru",timezone:5.5},
+    {lat:22.5726,lon:88.3639,name:"Kolkata",timezone:5.5},
+    {lat:17.3850,lon:78.4867,name:"Hyderabad",timezone:5.5},
+    {lat:21.1458,lon:79.0882,name:"Nagpur",timezone:5.5},
+    {lat:18.5204,lon:73.8567,name:"Pune",timezone:5.5},
+  ]);
 
   const set = <K extends keyof BirthData>(k:K, v:BirthData[K]) => setBirth(b=>({...b,[k]:v}));
+
+  const fetchDecisional = useCallback(async (module: string, extras: Record<string,unknown> = {}) => {
+    if (!birth) return;
+    setDecisionalLoading(true);
+    try {
+      const body: Record<string,unknown> = {birth, module, ...extras};
+      const res = await fetch("/api/decisional",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error||"Decisional computation failed");
+      setDecisional(d => ({...d, ...data}));
+    } catch(e) {
+      setError(String(e));
+    } finally {
+      setDecisionalLoading(false);
+    }
+  }, [birth]);
 
   const compute = useCallback(async () => {
     setLoading(true); setError(null);
@@ -147,6 +191,7 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error||"Computation failed");
       setChart(data);
+      setDecisional(null); // reset decisional on new chart
       setTab("chart");
     } catch(e) {
       setError(String(e));
@@ -154,6 +199,7 @@ export default function Home() {
       setLoading(false);
     }
   }, [birth]);
+
   // ═══════════════════════════
   // RENDER TABS
   // ═══════════════════════════
@@ -943,30 +989,25 @@ export default function Home() {
   function renderRemedies() {
     if (!chart) return null;
     const PLANET_REM: Record<string,{gem:string;mantra:string;day:string;donate:string}> = {
-  Sun:{gem:"Ruby (Manikya) — gold",mantra:"Om Hraam Hreem Hraum Sah Suryaya Namah (6000×)",day:"Sunday",donate:"Wheat, jaggery, copper, red cloth"},
-  Moon:{gem:"Pearl (Moti) — silver",mantra:"Om Shraam Shreem Shraum Sah Chandraya Namah (11000×)",day:"Monday",donate:"Rice, milk, white items, silver"},
-  Mars:{gem:"Red Coral (Moonga) — copper",mantra:"Om Kraam Kreem Kraum Sah Bhaumaya Namah (7000×)",day:"Tuesday",donate:"Red lentils, copper, red cloth"},
-  Mercury:{gem:"Emerald (Panna) — gold",mantra:"Om Braam Breem Braum Sah Budhaya Namah (17000×)",day:"Wednesday",donate:"Green moong, books, green cloth"},
-  Jupiter:{gem:"Yellow Sapphire (Pukhraj) — gold",mantra:"Om Graam Greem Graum Sah Guruve Namah (19000×)",day:"Thursday",donate:"Yellow items, turmeric, chana dal"},
-  Venus:{gem:"Diamond/White Sapphire",mantra:"Om Draam Dreem Draum Sah Shukraya Namah (20000×)",day:"Friday",donate:"White items, sugar, white cloth"},
-  Saturn:{gem:"Blue Sapphire (Neelam) — TRIAL 3 DAYS",mantra:"Om Praam Preem Praum Sah Shanaischaraya Namah (23000×)",day:"Saturday",donate:"Black sesame, iron, blue/black cloth"},
-  Rahu:{gem:"Hessonite (Gomed) — silver",mantra:"Om Bhraam Bhreem Bhraum Sah Rahave Namah (18000×)",day:"Saturday",donate:"Black/blue items, black gram"},
-  Ketu:{
-    gem:"Cat's Eye (Lehsunia)",
-    mantra:"Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",
-    day:"Tuesday",
-    donate:"Blanket, sesame, black or neutral items"
-  }
-};
+      Sun:{gem:"Ruby (Manikya) — gold",mantra:"Om Hraam Hreem Hraum Sah Suryaya Namah (6000×)",day:"Sunday",donate:"Wheat, jaggery, copper, red cloth"},
+      Moon:{gem:"Pearl (Moti) — silver",mantra:"Om Shraam Shreem Shraum Sah Chandraya Namah (11000×)",day:"Monday",donate:"Rice, milk, white items, silver"},
+      Mars:{gem:"Red Coral (Moonga) — copper",mantra:"Om Kraam Kreem Kraum Sah Bhaumaya Namah (7000×)",day:"Tuesday",donate:"Red lentils, copper, red cloth"},
+      Mercury:{gem:"Emerald (Panna) — gold",mantra:"Om Braam Breem Braum Sah Budhaya Namah (17000×)",day:"Wednesday",donate:"Green moong, books, green cloth"},
+      Jupiter:{gem:"Yellow Sapphire (Pukhraj) — gold",mantra:"Om Graam Greem Graum Sah Guruve Namah (19000×)",day:"Thursday",donate:"Yellow items, turmeric, chana dal"},
+      Venus:{gem:"Diamond/White Sapphire",mantra:"Om Draam Dreem Draum Sah Shukraya Namah (20000×)",day:"Friday",donate:"White items, sugar, white cloth"},
+      Saturn:{gem:"Blue Sapphire (Neelam) — TRIAL 3 DAYS",mantra:"Om Praam Preem Praum Sah Shanaischaraya Namah (23000×)",day:"Saturday",donate:"Black sesame, iron, blue/black cloth"},
+      Rahu:{gem:"Hessonite (Gomed) — silver",mantra:"Om Bhraam Bhreem Bhraum Sah Rahave Namah (18000×)",day:"Saturday",donate:"Black/blue items, black gram"},
 
+      Ketu:{gem:"Cat's Eye (Lehsunia)",mantra:"Om Sraam Sreem Sraum Sah Ketave Namah (17000×)",day:"Tuesday",donate:"Blanket, sesame, neutral items"},
+    };
     return (
       <div>
         <div className="card">
           <div className="card-title">Navagraha Parihara — Gem, Mantra, Day, Donation</div>
-          <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>⚠ Blue Sapphire (Neelam) requires a 3-day trial before wearing permanently — consult a qualified Jyotishi. All gems should be energised on the prescribed day in the correct hora.</div>
+          <div style={{fontSize:11,color:"var(--text3)",marginBottom:10}}>⚠ Blue Sapphire requires 3-day trial. All gems must be energised in correct hora on prescribed day.</div>
           <div className="scroll-x">
             <table className="data-table">
-              <thead><tr><th>Planet</th><th>Gem</th><th>Puja Day</th><th>Mantra</th><th>Donation</th></tr></thead>
+              <thead><tr><th>Planet</th><th>Gem</th><th>Day</th><th>Mantra</th><th>Donation</th></tr></thead>
               <tbody>
                 {Object.entries(PLANET_REM).map(([pn,rem])=>(
                   <tr key={pn}>
@@ -994,7 +1035,7 @@ export default function Home() {
         )}
         <div className="card">
           <div className="card-title">General Daily Practices (Atharva Veda)</div>
-          {["Recite Maha Mrityunjaya Mantra 108× daily","Visit Navagraha temple every Saturday","Fast on the day ruled by your Lagna Lord","Donate food to the poor on your Janma Nakshatra day monthly","Feed cows on Saturdays (Saturn propitiation)","Light sesame oil lamp on Saturdays","Recite Hanuman Chalisa on Tuesdays and Saturdays"].map(r=>(
+          {["Recite Maha Mrityunjaya Mantra 108× daily","Visit Navagraha temple every Saturday","Fast on the day ruled by your Lagna Lord","Donate food to the poor on Janma Nakshatra day monthly","Feed cows on Saturdays (Saturn propitiation)","Light sesame oil lamp on Saturdays","Recite Hanuman Chalisa on Tuesdays and Saturdays"].map(r=>(
             <div key={r} className="remedy-line">✦ {r}</div>
           ))}
         </div>
@@ -1004,23 +1045,18 @@ export default function Home() {
 
   function renderAyanamsa() {
     if (!chart?.allAyanamsas) return null;
-    const used = chart.ayanamsaUsed;
-    const usedVal = chart.allAyanamsas[used]||0;
+    const used=chart.ayanamsaUsed; const usedVal=chart.allAyanamsas[used]||0;
+    const AYANAMSA_LABELS2: Record<string,string> = {lahiri:"Lahiri (IAU)",raman:"B.V.Raman",kp:"KP (Krishnamurti)",yukteshwar:"Yukteshwar",true_chitrapaksha:"True Chitra",jn_bhasin:"J.N.Bhasin"};
     return (
       <div className="card">
         <div className="card-title">Ayanamsa Comparison — All Systems</div>
         {Object.entries(chart.allAyanamsas).map(([k,v])=>{
-          const ip=k===used;
-          const diff=v-usedVal;
+          const ip=k===used; const diff=v-usedVal;
           const dc=Math.abs(diff)<0.1?"var(--jade2)":Math.abs(diff)<0.3?"var(--gold2)":"var(--crimson2)";
           return (
             <div key={k} className="data-row">
-              <span className="lbl" style={{color:ip?"var(--gold2)":undefined,fontWeight:ip?700:400}}>
-                {AYANAMSA_LABELS[k]||k}{ip?" ★ Primary":""}
-              </span>
-              <span style={{fontFamily:"monospace",color:ip?"var(--gold2)":"var(--gold)"}}>
-                {r4(v)}°{!ip&&<span style={{fontSize:10,color:dc,marginLeft:4}}>{diff>=0?"+":""}{r4(diff)}°</span>}
-              </span>
+              <span className="lbl" style={{color:ip?"var(--gold2)":undefined,fontWeight:ip?700:400}}>{AYANAMSA_LABELS2[k]||k}{ip?" ★ Primary":""}</span>
+              <span style={{fontFamily:"monospace",color:ip?"var(--gold2)":"var(--gold)"}}>{r4(v)}°{!ip&&<span style={{fontSize:10,color:dc,marginLeft:4}}>{diff>=0?"+":""}{r4(diff)}°</span>}</span>
             </div>
           );
         })}
@@ -1037,32 +1073,685 @@ export default function Home() {
   }
 
   // ═══════════════════════════════════════════
+  // DECISIONAL ENGINE RENDER FUNCTIONS
+  // ═══════════════════════════════════════════
+
+  function DecisionalGate({module,children,extras}:{module:string;children:React.ReactNode;extras?:Record<string,unknown>}) {
+    const data = decisional?.[module==="transits"?"transits":module==="scenario"?"scenario":module==="muhurta"?"muhurta":module==="match"?"match":module==="gandas"?"gandas":module==="location"?"location":module==="timeline"?"timeline":module==="doshas_full"?"doshasFull":module];
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    if (data) return <>{children}</>;
+    return (
+      <div className="card" style={{textAlign:"center",padding:32}}>
+        <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Click to load {module} data from the decisional engine.</div>
+        <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={()=>fetchDecisional(module,extras||{})} disabled={decisionalLoading}>
+          {decisionalLoading?"⏳ Computing…":`⊕ Load ${module}`}
+        </button>
+      </div>
+    );
+  }
+
+  function renderTransits() {
+    const tr = decisional?.transits;
+    const load = ()=>fetchDecisional("transits",{targetDate:new Date().toISOString().slice(0,10)});
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    if (!tr) return (
+      <div className="card" style={{textAlign:"center",padding:32}}>
+        <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Load current transit analysis for all 9 planets over natal chart.</div>
+        <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={load} disabled={decisionalLoading}>{decisionalLoading?"⏳ Computing…":"🌐 Load Transits"}</button>
+      </div>
+    );
+    return (
+      <div>
+        <div className="card">
+          <div className="card-title">Current Planetary Transits — As of {tr.asOf}</div>
+          <div style={{marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}>
+            <div style={{background:"var(--deep)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 14px"}}>
+              <div style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace"}}>TRANSIT Ω</div>
+              <div style={{fontSize:18,fontWeight:700,color:omegaColor(tr.uedpOmegaTransit||0)}}>{r4(tr.uedpOmegaTransit)}</div>
+            </div>
+            <div style={{background:"var(--deep)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 14px"}}>
+              <div style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace"}}>SADE SATI</div>
+              <div style={{fontSize:14,fontWeight:700,color:tr.saturnTransit?.sadeSati?"var(--crimson2)":"var(--jade2)"}}>{tr.saturnTransit?.sadeSati?`YES — ${tr.saturnTransit.sadeSatiPhase}`:"Not Active"}</div>
+            </div>
+            <div style={{background:"var(--deep)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 14px"}}>
+              <div style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace"}}>RAHU-KETU AXIS</div>
+              <div style={{fontSize:12,color:"var(--gold2)"}}>{tr.rahuKetu?.axis}</div>
+            </div>
+          </div>
+          <div className="scroll-x">
+            <table className="data-table">
+              <thead><tr><th>Planet</th><th>Transit Rashi</th><th>H</th><th>Natal H</th><th>Relationship</th><th>Strength</th><th>Effect</th><th>Period</th></tr></thead>
+              <tbody>
+                {(tr.currentTransits||[]).map((t:any)=>(
+                  <tr key={t.planet}>
+                    <td><strong>{GLYPH[t.planet]||""} {t.planet}</strong></td>
+                    <td>{t.transitRashi}</td>
+                    <td style={{color:"var(--gold)",fontFamily:"monospace",textAlign:"center"}}>H{t.transitHouse}</td>
+                    <td style={{color:"var(--text3)",fontFamily:"monospace",textAlign:"center"}}>H{t.natalHouse}</td>
+                    <td style={{fontSize:10,color:t.relationship==="trine"?"var(--jade2)":t.relationship==="opposition"?"var(--crimson2)":"var(--text2)"}}>{t.relationship}</td>
+                    <td>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <div style={{width:50,height:5,background:"var(--deep)",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${t.strength}%`,background:scoreColor(t.strength)}}/></div>
+                        <span style={{fontSize:10,fontFamily:"monospace",color:scoreColor(t.strength)}}>{t.strength}</span>
+                      </div>
+                    </td>
+                    <td style={{fontSize:10,color:"var(--text2)",maxWidth:220}}>{t.effect}</td>
+                    <td style={{fontSize:10,fontFamily:"monospace",color:"var(--text3)"}}>{t.startDate}→{t.endDate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {tr.rahuKetu&&(
+          <div className="card">
+            <div className="card-title">Rahu-Ketu Axis — Karmic Transit</div>
+            <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.8}}>{tr.rahuKetu.effect}</div>
+            {[["Natal Rahu House",`H${tr.rahuKetu.natalHouseRahu}`],["Natal Ketu House",`H${tr.rahuKetu.natalHouseKetu}`]].map(([k,v])=>(
+              <div key={k} className="data-row"><span className="lbl">{k}</span><span className="val hi">{v}</span></div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderScenario() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const sc = decisional?.scenario;
+    const DOMAINS = ["career","marriage","business","education","investment","travel","medical","political","assets","children","spiritual","money","foreign"];
+    const clsColor: Record<string,string> = {PROCEED:"var(--jade2)",CAUTION:"var(--gold2)",DELAY:"#e08030",AVOID:"var(--crimson2)"};
+    return (
+      <div>
+        <div className="card">
+          <div className="card-title">⚖️ Decisional Scenario Engine</div>
+          <p style={{fontSize:11,color:"var(--text2)",marginBottom:12}}>Enter a proposed date, domain, and action. The engine scores it across 6 dimensions: Dasha, Transit, UEDP Ω, Panchang, Natal strength, and Ganda risk.</p>
+          <div className="grid-2" style={{gap:10,marginBottom:10}}>
+            <div>
+              <label className="form-label">Proposed Date</label>
+              <input className="form-input" type="date" value={scenarioDate} onChange={e=>setScenarioDate(e.target.value)}/>
+            </div>
+            <div>
+              <label className="form-label">Life Domain</label>
+              <select className="form-input" value={scenarioDomain} onChange={e=>setScenarioDomain(e.target.value)}>
+                {DOMAINS.map(d=><option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{marginBottom:10}}>
+            <label className="form-label">Action / Decision Description</label>
+            <input className="form-input" value={scenarioAction} onChange={e=>setScenarioAction(e.target.value)} placeholder="e.g. Accept job offer, Sign agreement, Start business"/>
+          </div>
+          <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} disabled={decisionalLoading}
+            onClick={()=>fetchDecisional("scenario",{targetDate:scenarioDate,actionDomain:scenarioDomain,action:scenarioAction})}>
+            {decisionalLoading?"⏳ Computing…":"⊕ Score This Decision"}
+          </button>
+        </div>
+
+        {sc&&(
+          <div>
+            <div style={{background:"var(--deep)",border:`2px solid ${clsColor[sc.classification]||"var(--border)"}`,borderRadius:10,padding:18,marginBottom:14,textAlign:"center"}}>
+              <div style={{fontSize:48,fontWeight:700,color:clsColor[sc.classification]}}>{sc.score}</div>
+              <div style={{fontSize:22,fontWeight:700,color:clsColor[sc.classification],marginBottom:6}}>{sc.classification}</div>
+              <div style={{fontSize:13,color:"var(--text2)"}}>{sc.recommendation}</div>
+            </div>
+            <div className="card">
+              <div className="card-title">Scoring Breakdown — 6 Dimensions</div>
+              {[
+                ["Dasha Compatibility",sc.dimensions?.dashaScore,sc.dimensions?.dashaNotes],
+                ["Transit Quality",sc.dimensions?.transitScore,sc.dimensions?.transitNotes],
+                ["Panchang",sc.dimensions?.panchangScore,sc.dimensions?.panchangNotes],
+                ["Natal Strength",sc.dimensions?.natalStrength,sc.dimensions?.natalNotes],
+                ["UEDP Ω",Math.round((sc.dimensions?.uedpOmega||0)*100),`Ω=${r4(sc.dimensions?.uedpOmega)} ${sc.dimensions?.uedpStable?"(STABLE)":"(BELOW Ω_crit)"}`],
+                ["Ganda Risk",Math.max(0,100-(sc.dimensions?.gandaRisk||0)),sc.dimensions?.gandaNotes],
+              ].map(([k,v,note])=>(
+                <div key={String(k)} className="bar-row">
+                  <div className="bar-label" style={{minWidth:150}}>{k}</div>
+                  <div className="bar-track"><div className="bar-fill" style={{width:`${v}%`,background:scoreColor(Number(v))}}/></div>
+                  <div className="bar-val" style={{color:scoreColor(Number(v))}}>{v}</div>
+                  <div style={{fontSize:10,color:"var(--text3)",marginLeft:8,flex:1}}>{note}</div>
+                </div>
+              ))}
+            </div>
+            {sc.alternativeDates?.length>0&&(
+              <div className="card">
+                <div className="card-title">Better Alternative Dates (within ±30 days)</div>
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  {sc.alternativeDates.map((d:string)=>(
+                    <button key={d} className="city-btn" onClick={()=>setScenarioDate(d)} style={{color:"var(--jade2)",borderColor:"var(--jade)"}}>{d}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sc.remediesIfProceed?.length>0&&(
+              <div className="card">
+                <div className="card-title">Remedies if Proceeding Despite Risk</div>
+                {sc.remediesIfProceed.map((r:string)=><div key={r} className="remedy-line">✦ {r}</div>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderMuhurta() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const mu = decisional?.muhurta;
+    const DOMAINS = ["marriage","career","business","education","investment","medical","political","money","assets","children","spiritual","foreign"];
+    const clsCols: Record<string,string> = {EXCELLENT:"var(--jade2)",GOOD:"var(--gold2)",MODERATE:"#e08030",AVOID:"var(--crimson2)"};
+    return (
+      <div>
+        <div className="card">
+          <div className="card-title">🕰️ Muhurta Finder — Best Windows for Any Action</div>
+          <p style={{fontSize:11,color:"var(--text2)",marginBottom:12}}>Scans a date range day-by-day. Scores Vara (weekday), Nakshatra, Tithi, and Hora for your chosen domain. Returns top 10 windows.</p>
+          <div className="grid-2" style={{gap:10,marginBottom:10}}>
+            <div>
+              <label className="form-label">Start Date</label>
+              <input className="form-input" type="date" value={scenarioDate} onChange={e=>setScenarioDate(e.target.value)}/>
+            </div>
+            <div>
+              <label className="form-label">End Date</label>
+              <input className="form-input" type="date" value={muhurtaEnd} onChange={e=>setMuhurtaEnd(e.target.value)}/>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label className="form-label">Domain / Purpose</label>
+            <select className="form-input" value={scenarioDomain} onChange={e=>setScenarioDomain(e.target.value)}>
+              {DOMAINS.map(d=><option key={d} value={d}>{d.charAt(0).toUpperCase()+d.slice(1)}</option>)}
+            </select>
+          </div>
+          <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} disabled={decisionalLoading}
+            onClick={()=>fetchDecisional("muhurta",{targetDate:scenarioDate,endDate:muhurtaEnd,actionDomain:scenarioDomain})}>
+            {decisionalLoading?"⏳ Computing…":"🕰️ Find Best Muhurtas"}
+          </button>
+        </div>
+        {mu&&(
+          <div>
+            <div className="card" style={{background:"rgba(58,184,122,0.06)",border:"1px solid var(--jade)"}}>
+              <div className="card-title">Best Muhurta</div>
+              <div style={{fontSize:28,fontWeight:700,color:"var(--jade2)"}}>{mu.bestDate}</div>
+              <div style={{fontSize:13,color:"var(--text2)",marginTop:4}}>{mu.summary}</div>
+            </div>
+            <div className="card">
+              <div className="card-title">Top 10 Muhurta Windows — {mu.domain?.charAt(0).toUpperCase()+(mu.domain?.slice(1)||"")} {mu.rangeStart}→{mu.rangeEnd}</div>
+              <div className="scroll-x">
+                <table className="data-table">
+                  <thead><tr><th>Date</th><th>Vara</th><th>Nakshatra</th><th>Tithi</th><th>Best Hora</th><th>Score</th><th>Grade</th><th>Reasons</th></tr></thead>
+                  <tbody>
+                    {(mu.windows||[]).map((w:any,i:number)=>(
+                      <tr key={i} style={{background:w.classification==="EXCELLENT"?"rgba(58,184,122,0.07)":""}}>
+                        <td style={{fontFamily:"monospace",fontWeight:700,color:clsCols[w.classification]}}>{w.date}</td>
+                        <td style={{color:"var(--gold2)"}}>{w.vara}</td>
+                        <td>{w.nakshatra}</td>
+                        <td style={{fontFamily:"monospace",color:"var(--text3)"}}>{w.tithi}</td>
+                        <td style={{fontSize:10,color:"var(--sapphire2)"}}>{w.bestHora}</td>
+                        <td style={{fontFamily:"monospace",fontWeight:700,color:clsCols[w.classification]}}>{w.score}</td>
+                        <td><span style={{fontSize:9,color:clsCols[w.classification],border:`1px solid ${clsCols[w.classification]}`,borderRadius:3,padding:"1px 5px"}}>{w.classification}</span></td>
+                        <td style={{fontSize:10,color:"var(--text3)"}}>{(w.reasons||[]).slice(0,2).join("; ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderMatch() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const ma = decisional?.match;
+    const gradeCol = (g:string) => g==="Excellent"?"var(--jade2)":g==="Good"?"var(--gold2)":g==="Acceptable"?"#e08030":"var(--crimson2)";
+    return (
+      <div>
+        <div className="card">
+          <div className="card-title">💞 Kundali Match — Ashtakoot + UEDP Harmony</div>
+          <p style={{fontSize:11,color:"var(--text2)",marginBottom:12}}>Enter partner's birth details. Full 8-koot Ashtakoot analysis + Mangal dosha + Nadi dosha + UEDP field coherence harmony.</p>
+          <div className="grid-2" style={{gap:8,marginBottom:8}}>
+            <div>
+              <label className="form-label">Partner Name</label>
+              <input className="form-input" value={String(partnerBirth.name||"")} onChange={e=>setPartnerBirth(p=>({...p,name:e.target.value}))} placeholder="Partner Name"/>
+            </div>
+            <div>
+              <label className="form-label">Date (D / M / YYYY)</label>
+              <div className="grid-3">
+                <input className="form-input" type="number" value={partnerBirth.day||1} onChange={e=>setPartnerBirth(p=>({...p,day:+e.target.value}))} placeholder="DD" min={1} max={31}/>
+                <input className="form-input" type="number" value={partnerBirth.month||1} onChange={e=>setPartnerBirth(p=>({...p,month:+e.target.value}))} placeholder="MM" min={1} max={12}/>
+                <input className="form-input" type="number" value={partnerBirth.year||1970} onChange={e=>setPartnerBirth(p=>({...p,year:+e.target.value}))} placeholder="YYYY"/>
+              </div>
+            </div>
+          </div>
+          <div className="grid-2" style={{gap:8,marginBottom:8}}>
+            <div>
+              <label className="form-label">Time (H : M)</label>
+              <div className="grid-2">
+                <input className="form-input" type="number" value={partnerBirth.hour||0} onChange={e=>setPartnerBirth(p=>({...p,hour:+e.target.value}))} placeholder="HH"/>
+                <input className="form-input" type="number" value={partnerBirth.minute||0} onChange={e=>setPartnerBirth(p=>({...p,minute:+e.target.value}))} placeholder="MM"/>
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Lat / Lon</label>
+              <div className="grid-2">
+                <input className="form-input" type="number" step="0.01" value={partnerBirth.latitude||13.08} onChange={e=>setPartnerBirth(p=>({...p,latitude:+e.target.value}))} placeholder="Lat"/>
+                <input className="form-input" type="number" step="0.01" value={partnerBirth.longitude||80.27} onChange={e=>setPartnerBirth(p=>({...p,longitude:+e.target.value}))} placeholder="Lon"/>
+              </div>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <label className="form-label">Timezone</label>
+            <input className="form-input" type="number" step="0.5" value={partnerBirth.timezone||5.5} onChange={e=>setPartnerBirth(p=>({...p,timezone:+e.target.value}))}/>
+          </div>
+          <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} disabled={decisionalLoading}
+            onClick={()=>fetchDecisional("match",{partnerBirth:{...partnerBirth,second:0,gender:"female",ayanamsa:birth.ayanamsa||"lahiri"}})}>
+            {decisionalLoading?"⏳ Computing…":"💞 Compute Compatibility"}
+          </button>
+        </div>
+        {ma&&(
+          <div>
+            <div style={{background:"var(--deep)",border:`2px solid ${gradeCol(ma.grade)}`,borderRadius:10,padding:18,marginBottom:14,textAlign:"center"}}>
+              <div style={{fontSize:48,fontWeight:700,color:gradeCol(ma.grade)}}>{ma.totalPoints}<span style={{fontSize:22,color:"var(--text3)"}}>/36</span></div>
+              <div style={{fontSize:18,fontWeight:700,color:gradeCol(ma.grade)}}>{ma.grade} — {ma.percentage}%</div>
+              <div style={{fontSize:12,color:"var(--text2)",marginTop:6}}>{ma.summary}</div>
+              <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>UEDP Field Harmony: {ma.uedpHarmony}</div>
+            </div>
+            <div className="card">
+              <div className="card-title">Ashtakoot — 8 Koot Scores</div>
+              <div className="scroll-x">
+                <table className="data-table">
+                  <thead><tr><th>Koot</th><th>Score</th><th>Max</th><th>%</th><th>Result</th></tr></thead>
+                  <tbody>
+                    {(ma.ashtakoot||[]).map((k:any)=>{
+                      const pct=Math.round(k.score/k.maxScore*100);
+                      return (
+                        <tr key={k.koot}>
+                          <td style={{fontWeight:700}}>{k.koot}</td>
+                          <td style={{fontFamily:"monospace",color:scoreColor(pct),fontWeight:700}}>{k.score}</td>
+                          <td style={{fontFamily:"monospace",color:"var(--text3)"}}>{k.maxScore}</td>
+                          <td>
+                            <div style={{display:"flex",alignItems:"center",gap:6}}>
+                              <div style={{width:60,height:5,background:"var(--deep)",borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:scoreColor(pct)}}/></div>
+                              <span style={{fontSize:10,color:scoreColor(pct)}}>{pct}%</span>
+                            </div>
+                          </td>
+                          <td style={{fontSize:11,color:k.result.includes("Dosha")||k.result.includes("Poor")||k.result.includes("Incompat")?"var(--crimson2)":k.result.includes("Excell")||k.result.includes("Perfect")?"var(--jade2)":"var(--text2)"}}>{k.result}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="grid-2">
+              <div className="card">
+                <div className="card-title">Mangal Dosha</div>
+                {[["Native",ma.mangalDosha?.native?"⚠ Present":"✓ None"],["Partner",ma.mangalDosha?.partner?"⚠ Present":"✓ None"],["Cancels",ma.mangalDosha?.cancels?"✓ Yes — mutual cancel":"✗ No"],["Effect",ma.mangalDosha?.effect]].map(([k,v])=>(
+                  <div key={String(k)} className="data-row"><span className="lbl">{k}</span><span className="val" style={{color:String(v).includes("⚠")?"var(--crimson2)":String(v).includes("✓")?"var(--jade2)":"var(--text2)",fontSize:11}}>{v}</span></div>
+                ))}
+              </div>
+              <div className="card">
+                <div className="card-title">Nadi Dosha</div>
+                {[["Present",ma.nadiDosha?.present?"⚠ YES":"✓ None"],["Severity",ma.nadiDosha?.severity]].map(([k,v])=>(
+                  <div key={String(k)} className="data-row"><span className="lbl">{k}</span><span className="val" style={{color:String(v).includes("⚠")||v==="High"?"var(--crimson2)":"var(--jade2)",fontSize:11}}>{v}</span></div>
+                ))}
+                {ma.nadiDosha?.remedy&&<div style={{fontSize:10,color:"var(--gold2)",marginTop:6,lineHeight:1.6}}>Remedy: {ma.nadiDosha.remedy}</div>}
+              </div>
+            </div>
+            {ma.pariharas?.length>0&&(
+              <div className="card">
+                <div className="card-title">Compatibility Pariharas</div>
+                {ma.pariharas.map((r:string)=><div key={r} className="remedy-line">✦ {r}</div>)}
+              </div>
+            )}
+            <div className="card" style={{background:"rgba(58,184,122,0.05)",border:"1px solid var(--jade)"}}>
+              <div className="card-title">Recommendation</div>
+              <div style={{fontSize:13,color:"var(--text)",lineHeight:1.7}}>{ma.recommendation}</div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderGandas() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const gd = decisional?.gandas;
+    const sevCol = (s:string) => s==="high"?"var(--crimson2)":s==="medium"?"#e08030":"var(--gold2)";
+    return (
+      <div>
+        {!gd?(
+          <div className="card" style={{textAlign:"center",padding:32}}>
+            <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Detect all Gandanta, Kaal Sarp, Graha Yuddha, Vish Yoga, Maraka periods, Kemdrum and other danger periods.</div>
+            <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={()=>fetchDecisional("gandas")} disabled={decisionalLoading}>{decisionalLoading?"⏳ Computing…":"⚠️ Load Ganda Analysis"}</button>
+          </div>
+        ):(
+          <div>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:14}}>
+              <div style={{background:"var(--deep)",border:`2px solid ${gd.totalRiskScore>50?"var(--crimson2)":gd.totalRiskScore>25?"#e08030":"var(--jade)"}`,borderRadius:8,padding:"12px 20px",textAlign:"center",minWidth:130}}>
+                <div style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",marginBottom:2}}>TOTAL RISK SCORE</div>
+                <div style={{fontSize:36,fontWeight:700,color:gd.totalRiskScore>50?"var(--crimson2)":gd.totalRiskScore>25?"#e08030":"var(--jade2)"}}>{gd.totalRiskScore}</div>
+              </div>
+              <div style={{background:"var(--deep)",border:`1px solid ${gd.kaalSarpa?.present?"var(--crimson2)":"var(--border)"}`,borderRadius:8,padding:"12px 20px",minWidth:200}}>
+                <div style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",marginBottom:2}}>KAAL SARP YOGA</div>
+                <div style={{fontSize:14,fontWeight:700,color:gd.kaalSarpa?.present?"var(--crimson2)":"var(--jade2)"}}>{gd.kaalSarpa?.present?"PRESENT":"Not Present"}</div>
+                {gd.kaalSarpa?.present&&<div style={{fontSize:10,color:"var(--text2)",marginTop:2}}>{gd.kaalSarpa.type}</div>}
+              </div>
+            </div>
+
+            {gd.kaalSarpa?.present&&(
+              <div className="card" style={{border:"1px solid var(--crimson2)"}}>
+                <div className="card-title" style={{color:"var(--crimson2)"}}>Kaal Sarp Yoga — {gd.kaalSarpa.type}</div>
+                <div style={{fontSize:11,color:"var(--text2)",marginBottom:8}}>{gd.kaalSarpa.severity}</div>
+                <div className="remedy-line">✦ {gd.kaalSarpa.remedy}</div>
+              </div>
+            )}
+
+            {gd.activeNow?.length>0&&(
+              <div className="card" style={{border:"1px solid var(--crimson2)"}}>
+                <div className="card-title" style={{color:"var(--crimson2)"}}>⚠ Currently Active Dangers ({gd.activeNow.length})</div>
+                {gd.activeNow.map((g:any,i:number)=>(
+                  <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <strong style={{color:sevCol(g.severity)}}>{g.name}</strong>
+                      <span style={{fontSize:9,color:sevCol(g.severity),border:`1px solid ${sevCol(g.severity)}`,borderRadius:3,padding:"0 4px"}}>{g.severity.toUpperCase()}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text2)",marginBottom:4}}>{g.effect}</div>
+                    <div className="remedy-line" style={{fontSize:10}}>✦ {g.remedy}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {gd.natalGandas?.length>0&&(
+              <div className="card">
+                <div className="card-title">Natal Chart Dangers — Permanent Factors</div>
+                {gd.natalGandas.map((g:any,i:number)=>(
+                  <div key={i} style={{marginBottom:10,paddingBottom:10,borderBottom:"1px solid var(--border)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+                      <strong style={{color:sevCol(g.severity)}}>{g.name}</strong>
+                      <span style={{fontSize:9,color:sevCol(g.severity),border:`1px solid ${sevCol(g.severity)}`,borderRadius:3,padding:"0 4px"}}>{g.severity.toUpperCase()}</span>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--text2)",marginBottom:4}}>{g.effect}</div>
+                    <div className="remedy-line" style={{fontSize:10}}>✦ {g.remedy}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {gd.lifeGandas?.length>0&&(
+              <div className="card">
+                <div className="card-title">Maraka & Danger Dasha Periods</div>
+                <table className="data-table">
+                  <thead><tr><th>Name</th><th>Severity</th><th>From</th><th>To</th><th>Effect</th></tr></thead>
+                  <tbody>
+                    {gd.lifeGandas.map((g:any,i:number)=>(
+                      <tr key={i} style={{background:g.isActive?"rgba(232,96,96,0.08)":""}}>
+                        <td style={{fontWeight:700,color:sevCol(g.severity)}}>{g.name}{g.isActive?" ◄ ACTIVE":""}</td>
+                        <td><span style={{fontSize:9,color:sevCol(g.severity),border:`1px solid ${sevCol(g.severity)}`,borderRadius:3,padding:"0 4px"}}>{g.severity}</span></td>
+                        <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text3)"}}>{g.startDate}</td>
+                        <td style={{fontFamily:"monospace",fontSize:11,color:"var(--text3)"}}>{g.endDate}</td>
+                        <td style={{fontSize:11,color:"var(--text2)"}}>{g.effect}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderLocation() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const loc = decisional?.location;
+    const DOMAINS = ["career","education","business","marriage","money","spiritual","assets","political","investment","children","medical","foreign"];
+    return (
+      <div>
+        {!loc?(
+          <div className="card" style={{textAlign:"center",padding:32}}>
+            <div style={{fontSize:13,color:"var(--text2)",marginBottom:8}}>Score 8 major Indian cities for this native across 12 life domains using Vastu directional analysis.</div>
+            <div style={{fontSize:11,color:"var(--text3)",marginBottom:16}}>Cities: Delhi, Mumbai, Chennai, Bengaluru, Kolkata, Hyderabad, Nagpur, Pune</div>
+            <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={()=>fetchDecisional("location",{locations:locationList})} disabled={decisionalLoading}>{decisionalLoading?"⏳ Computing…":"📍 Score All Locations"}</button>
+          </div>
+        ):(
+          <div>
+            <div className="card" style={{background:"rgba(58,184,122,0.05)",border:"1px solid var(--jade)"}}>
+              <div className="card-title">Best City Overall</div>
+              <div style={{fontSize:28,fontWeight:700,color:"var(--jade2)"}}>{loc.bestCity}</div>
+              <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Native birthplace: {loc.nativeCity}</div>
+            </div>
+            <div className="card">
+              <div className="card-title">Domain→Best City Matrix</div>
+              <div className="grid-3" style={{gap:6}}>
+                {DOMAINS.map(d=>(
+                  <div key={d} style={{background:"var(--deep)",border:"1px solid var(--border)",borderRadius:5,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:10,color:"var(--text2)"}}>{d}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:"var(--gold2)"}}>{loc.bestForPurpose?.[d]||"—"}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-title">City Scores — Overall + All Domains</div>
+              <div className="scroll-x">
+                <table className="data-table">
+                  <thead><tr><th>City</th><th>Dir</th><th>Overall</th>{DOMAINS.map(d=><th key={d} style={{fontSize:9}}>{d.slice(0,5)}</th>)}<th>Best For</th></tr></thead>
+                  <tbody>
+                    {(loc.scores||[]).map((s:any,i:number)=>(
+                      <tr key={i} style={{background:i===0?"rgba(58,184,122,0.07)":""}}>
+                        <td style={{fontWeight:700,color:i===0?"var(--jade2)":"var(--text)"}}>{s.city}{i===0?" ★":""}</td>
+                        <td style={{fontSize:10,color:"var(--sapphire2)"}}>{s.direction}</td>
+                        <td style={{fontFamily:"monospace",fontWeight:700,color:scoreColor(s.overallScore)}}>{s.overallScore}</td>
+                        {DOMAINS.map(d=><td key={d} style={{fontFamily:"monospace",fontSize:10,color:scoreColor(s.domainScores?.[d]||50)}}>{s.domainScores?.[d]||"—"}</td>)}
+                        <td style={{fontSize:10,color:"var(--jade2)"}}>{(s.bestFor||[]).slice(0,2).join(", ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderFullTimeline() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const tl = decisional?.timeline;
+    const clsCol: Record<string,string> = {PEAK:"var(--jade2)",STABLE:"var(--gold2)",CAUTION:"#e08030",TROUGH:"var(--crimson2)",CRITICAL:"#ff3333"};
+    return (
+      <div>
+        {!tl?(
+          <div className="card" style={{textAlign:"center",padding:32}}>
+            <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Full decisional life arc — past, present, and future periods classified by UEDP Ω + Dasha + Ganda.</div>
+            <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={()=>fetchDecisional("timeline")} disabled={decisionalLoading}>{decisionalLoading?"⏳ Computing…":"🗓️ Load Full Life Arc"}</button>
+          </div>
+        ):(
+          <div>
+            <div className="grid-2" style={{marginBottom:14}}>
+              <div className="card">
+                <div className="card-title" style={{color:"var(--jade2)"}}>Peak Years</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(tl.peakYears||[]).map((y:string)=><span key={y} style={{background:"rgba(58,184,122,0.12)",border:"1px solid var(--jade)",color:"var(--jade2)",borderRadius:4,padding:"2px 8px",fontFamily:"monospace",fontSize:12}}>{y}</span>)}</div>
+              </div>
+              <div className="card">
+                <div className="card-title" style={{color:"var(--crimson2)"}}>Trough Years — Caution</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{(tl.troughYears||[]).map((y:string)=><span key={y} style={{background:"rgba(232,96,96,0.12)",border:"1px solid var(--crimson)",color:"var(--crimson2)",borderRadius:4,padding:"2px 8px",fontFamily:"monospace",fontSize:12}}>{y}</span>)}</div>
+              </div>
+            </div>
+
+            {(tl.lifeChapters||[]).map((ch:any,i:number)=>(
+              <div key={i} style={{background:"var(--deep)",border:"1px solid var(--border)",borderRadius:7,padding:12,marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:700,color:"var(--gold2)",marginBottom:3}}>{ch.title}</div>
+                <div style={{fontSize:10,fontFamily:"monospace",color:"var(--text3)",marginBottom:4}}>{ch.start} → {ch.end}</div>
+                <div style={{fontSize:11,color:"var(--text2)"}}>{ch.summary}</div>
+              </div>
+            ))}
+
+            {tl.currentPeriod&&(
+              <div className="card" style={{border:`2px solid ${clsCol[tl.currentPeriod.classification]}`}}>
+                <div className="card-title">◄ Current Period — {tl.currentPeriod.dashaActive}</div>
+                <div style={{display:"flex",gap:16,flexWrap:"wrap"}}>
+                  <div style={{fontSize:36,fontWeight:700,color:clsCol[tl.currentPeriod.classification]}}>{tl.currentPeriod.classification}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:11,color:"var(--text2)",marginBottom:4}}>{tl.currentPeriod.period}</div>
+                    <div style={{fontSize:11,color:omegaColor(tl.currentPeriod.uedpOmega),fontFamily:"monospace"}}>Ω = {r4(tl.currentPeriod.uedpOmega)}</div>
+                    <div style={{fontSize:11,color:"var(--text2)",marginTop:4}}>{(tl.currentPeriod.domains||[]).join(", ")}</div>
+                    {(tl.currentPeriod.events||[]).map((e:string,i:number)=><div key={i} style={{fontSize:10,color:"var(--text3)",marginTop:2}}>• {e}</div>)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="card">
+              <div className="card-title">Full Dasha Timeline — Past · Present · Future</div>
+              <div className="scroll-x" style={{maxHeight:450,overflowY:"auto"}}>
+                <table className="data-table">
+                  <thead><tr><th>Period</th><th>Dasha</th><th>Class</th><th>Ω</th><th>Score</th><th>Domains</th><th>Events</th></tr></thead>
+                  <tbody>
+                    {[...(tl.pastPeriods||[]),...(tl.currentPeriod?[tl.currentPeriod]:[]),...(tl.futurePeriods||[])].map((e:any,i:number)=>(
+                      <tr key={i} style={{background:e.isCurrentPeriod?"rgba(200,150,42,0.1)":e.startDate>new Date().toISOString().slice(0,10)?"rgba(58,80,130,0.05)":""}}>
+                        <td style={{fontFamily:"monospace",fontSize:10,color:e.isCurrentPeriod?"var(--gold2)":"var(--text3)"}}>{e.period}{e.isCurrentPeriod?" ◄":""}</td>
+                        <td style={{fontWeight:700,color:"var(--gold2)"}}>{e.dashaActive}</td>
+                        <td><span style={{fontSize:9,color:clsCol[e.classification],border:`1px solid ${clsCol[e.classification]}`,borderRadius:3,padding:"0 4px"}}>{e.classification}</span></td>
+                        <td style={{fontFamily:"monospace",color:omegaColor(e.uedpOmega)}}>{r4(e.uedpOmega)}</td>
+                        <td style={{fontFamily:"monospace",color:scoreColor(e.score)}}>{e.score}</td>
+                        <td style={{fontSize:10,color:"var(--text2)"}}>{(e.domains||[]).slice(0,2).join(", ")}</td>
+                        <td style={{fontSize:10,color:"var(--text3)"}}>{(e.events||[]).slice(0,1).join("")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderPariharas() {
+    if (!chart) return <div className="status-err">Compute a chart first.</div>;
+    const pf = decisional?.doshasFull;
+    return (
+      <div>
+        {!pf?(
+          <div className="card" style={{textAlign:"center",padding:32}}>
+            <div style={{fontSize:13,color:"var(--text2)",marginBottom:16}}>Full Parihara & extended Dosha analysis — Kaal Sarp, Gandanta, Graha Yuddha, Vish Yoga, Nadi details, and complete classical remedy vidhi.</div>
+            <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={()=>fetchDecisional("doshas_full")} disabled={decisionalLoading}>{decisionalLoading?"⏳ Computing…":"🪔 Load Full Pariharas"}</button>
+          </div>
+        ):(
+          <div>
+            {(pf.pariharas||[]).map((p:any)=>(
+              <div key={p.dosha} className="card" style={{marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:700,color:"var(--gold2)"}}>{p.dosha}</div>
+                    <div style={{fontSize:11,color:"var(--text3)",fontFamily:"monospace"}}>{p.source}</div>
+                  </div>
+                </div>
+                <div className="grid-2" style={{gap:12}}>
+                  <div>
+                    {[["Remedy",p.remedy],["Ritual (Vidhi)",p.ritual],["Deity",p.deity]].map(([k,v])=>(
+                      <div key={String(k)} style={{marginBottom:8}}>
+                        <div style={{fontSize:9,color:"var(--gold3)",fontFamily:"monospace",marginBottom:2}}>{k}</div>
+                        <div style={{fontSize:12,color:"var(--text2)",lineHeight:1.6}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{background:"rgba(0,0,0,0.3)",borderRadius:6,padding:10,border:"1px solid var(--border)",marginBottom:8}}>
+                      <div style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",marginBottom:3}}>MANTRA</div>
+                      <div style={{fontSize:12,color:"var(--jade2)",lineHeight:1.7}}>{p.mantra}</div>
+                    </div>
+                    {[["Daan (Donation)",p.daan],["Timing",p.timing]].map(([k,v])=>(
+                      <div key={String(k)} style={{marginBottom:6}}>
+                        <div style={{fontSize:9,color:"var(--gold3)",fontFamily:"monospace",marginBottom:2}}>{k}</div>
+                        <div style={{fontSize:11,color:"var(--text2)"}}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {p.karmaBarrier&&(
+                  <div style={{marginTop:8,background:"rgba(232,96,96,0.08)",border:"1px solid rgba(232,96,96,0.3)",borderRadius:5,padding:8}}>
+                    <div style={{fontSize:9,color:"var(--crimson2)",fontFamily:"monospace",marginBottom:3}}>⚠ KARMA BARRIER — WHY REMEDY MAY NOT WORK</div>
+                    <div style={{fontSize:11,color:"var(--text2)",lineHeight:1.6}}>{p.karmaBarrier}</div>
+                  </div>
+                )}
+                {p.karmaOverride&&(
+                  <div style={{marginTop:6,background:"rgba(58,184,122,0.06)",border:"1px solid rgba(58,184,122,0.25)",borderRadius:5,padding:8}}>
+                    <div style={{fontSize:9,color:"var(--jade2)",fontFamily:"monospace",marginBottom:3}}>✦ HOW TO OVERRIDE KARMA</div>
+                    <div style={{fontSize:11,color:"var(--text2)",lineHeight:1.6}}>{p.karmaOverride}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {(pf.gandaReport||[]).length>0&&(
+              <div className="card">
+                <div className="card-title">Extended Natal Danger Analysis</div>
+                {pf.gandaReport.map((g:any,i:number)=>(
+                  <div key={i} style={{marginBottom:8,paddingBottom:8,borderBottom:"1px solid var(--border)"}}>
+                    <div style={{fontSize:12,fontWeight:700,color:"#e08030",marginBottom:2}}>{g.name}</div>
+                    <div style={{fontSize:11,color:"var(--text2)",marginBottom:4}}>{g.effect}</div>
+                    <div className="remedy-line" style={{fontSize:10}}>✦ {g.remedy}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {pf.kaalSarpa&&pf.kaalSarpa.present&&(
+              <div className="card" style={{border:"1px solid var(--crimson2)"}}>
+                <div className="card-title" style={{color:"var(--crimson2)"}}>Kaal Sarp Yoga</div>
+                <div style={{fontSize:12,color:"var(--text2)",marginBottom:8}}>{pf.kaalSarpa.type} · {pf.kaalSarpa.axis}</div>
+                <div className="remedy-line">✦ {pf.kaalSarpa.remedy}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════
   // MAIN RENDER
   // ═══════════════════════════════════════════
   const renderTab = () => {
     switch(tab) {
-      case "chart":       return renderChart();
-      case "uedp":        return renderUEDP();
-      case "timeline":    return renderTimeline();
-      case "hora":        return renderHora();
-      case "panchang":    return renderPanchang();
-      case "planets":     return renderPlanets();
-      case "shadbala":    return renderShadbala();
-      case "dasha":       return renderDasha();
-      case "doshas":      return renderDoshas();
-      case "yogas":       return renderYogas();
-      case "medical":     return renderMedical();
-      case "political":   return renderPolitical();
-      case "vargas":      return renderVargas();
-      case "marriage":    return renderMarriage();
-      case "children":    return renderChildren();
-      case "directions":  return renderDirections();
-      case "predictions": return renderPredictions();
-      case "remedies":    return renderRemedies();
-      case "ayanamsa":    return renderAyanamsa();
-      default:            return null;
+      case "chart":        return renderChart();
+      case "uedp":         return renderUEDP();
+      case "timeline":     return renderTimeline();
+      case "hora":         return renderHora();
+      case "panchang":     return renderPanchang();
+      case "planets":      return renderPlanets();
+      case "shadbala":     return renderShadbala();
+      case "dasha":        return renderDasha();
+      case "doshas":       return renderDoshas();
+      case "yogas":        return renderYogas();
+      case "medical":      return renderMedical();
+      case "political":    return renderPolitical();
+      case "vargas":       return renderVargas();
+      case "marriage":     return renderMarriage();
+      case "children":     return renderChildren();
+      case "directions":   return renderDirections();
+      case "predictions":  return renderPredictions();
+      case "remedies":     return renderRemedies();
+      case "ayanamsa":     return renderAyanamsa();
+      case "transits":     return renderTransits();
+      case "scenario":     return renderScenario();
+      case "muhurta":      return renderMuhurta();
+      case "match":        return renderMatch();
+      case "gandas":       return renderGandas();
+      case "location":     return renderLocation();
+      case "fullTimeline": return renderFullTimeline();
+      case "pariharas":    return renderPariharas();
+      default:             return null;
     }
   };
+
+  const AYANAMSA_LABELS_SI: Record<string,string> = {lahiri:"Lahiri (IAU)",raman:"B.V.Raman",kp:"KP (Krishnamurti)",yukteshwar:"Yukteshwar",true_chitrapaksha:"True Chitra",jn_bhasin:"J.N.Bhasin"};
 
   return (
     <>
@@ -1103,7 +1792,7 @@ export default function Home() {
             <input className="form-input" type="number" step="0.0001" value={birth.longitude} onChange={e=>set("longitude",+e.target.value)} placeholder="Lon"/>
           </div>
 
-          <label className="form-label">Timezone Offset (IST = 5.5)</label>
+          <label className="form-label">Timezone (IST = 5.5)</label>
           <input className="form-input" type="number" step="0.5" value={birth.timezone} onChange={e=>set("timezone",+e.target.value)}/>
 
           <div className="form-section-title" style={{marginTop:10}}>Quick Cities</div>
@@ -1117,7 +1806,7 @@ export default function Home() {
 
           <div className="form-section-title" style={{marginTop:10}}>Ayanamsa</div>
           <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8}}>
-            {Object.entries(AYANAMSA_LABELS).map(([k,v])=>(
+            {Object.entries(AYANAMSA_LABELS_SI).map(([k,v])=>(
               <button key={k} className={`ayan-btn ${birth.ayanamsa===k?"active":""}`} onClick={()=>set("ayanamsa",k)}>
                 {v.split(" ")[0]}
               </button>
@@ -1134,13 +1823,13 @@ export default function Home() {
               <div><span style={{color:"var(--text3)"}}>Nakshatra: </span>{chart.panchang.nakshatra}</div>
               <div><span style={{color:"var(--text3)"}}>Mahadasha: </span><strong style={{color:"var(--gold2)"}}>{chart.dasha?.current?.mahadasha}</strong></div>
               <div><span style={{color:"var(--text3)"}}>Ω: </span><span style={{color:omegaColor(chart.uedp.omega),fontFamily:"monospace"}}>{r4(chart.uedp.omega)}</span></div>
+              {decisionalLoading&&<div style={{color:"var(--gold)",fontSize:10,fontFamily:"monospace",marginTop:4}}>⏳ Decisional engine running…</div>}
             </div>
           )}
         </aside>
 
         {/* Main content */}
         <main className="main-content">
-          {/* Tab bar */}
           <div className="tab-bar">
             {TABS.map(t=>(
               <button key={t.id} className={`tab-btn ${tab===t.id?"active":""}`} onClick={()=>setTab(t.id)}>
@@ -1150,13 +1839,12 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Content area */}
           <div className="content-area">
             {error && <div className="status-err">⚠ {error}</div>}
             {loading && (
               <div className="loading-state">
                 <div className="loading-spinner"/>
-                <div style={{color:"var(--gold)",fontFamily:"monospace",marginTop:12}}>⏳ Computing chart — Swiss Ephemeris + UEDP v5…</div>
+                <div style={{color:"var(--gold)",fontFamily:"monospace",marginTop:12}}>⏳ Computing chart — VSOP87 corrected + UEDP v5…</div>
               </div>
             )}
             {!loading && !chart && !error && (
@@ -1165,9 +1853,9 @@ export default function Home() {
                 <div style={{fontSize:20,color:"var(--gold)",marginBottom:8}}>UEDP V5 Jyotisha Intelligence Engine</div>
                 <div style={{fontSize:13,color:"var(--text2)",lineHeight:1.8,maxWidth:500}}>
                   G S Ramesh Kumar — Universal Dynamics Emergence Protocol v5<br/>
-                  Enter birth details in the sidebar and click <strong style={{color:"var(--gold)"}}>Compute Chart</strong>.<br/>
-                  All {TABS.length} analytical tabs will populate with complete Vedic chart data.<br/>
-                  <span style={{fontSize:11,color:"var(--text3)"}}>Sources: Surya Siddhanta · BPHS · Phaladeepika · Muhurta Chintamani · Atharva Veda</span>
+                  Enter birth details and click <strong style={{color:"var(--gold)"}}>Compute Chart</strong>.<br/>
+                  All {TABS.length} analytical tabs populate with complete Vedic + Decisional data.<br/>
+                  <span style={{fontSize:11,color:"var(--text3)"}}>Surya Siddhanta · BPHS · Phaladeepika · Muhurta Chintamani · Atharva Veda · UEDP v5</span>
                 </div>
               </div>
             )}
@@ -1178,5 +1866,3 @@ export default function Home() {
     </>
   );
 }
-
-
