@@ -155,7 +155,7 @@ export default function Home() {
   const [muhurtaEnd, setMuhurtaEnd] = useState<string>(new Date(Date.now()+60*86400000).toISOString().slice(0,10));
   // Match partner
   const [partnerBirth, setPartnerBirth] = useState<Partial<BirthData>>({name:"",day:1,month:1,year:1970,hour:0,minute:0,second:0,latitude:13.0827,longitude:80.2707,timezone:5.5});
-  const [locationList] = useState([
+  const [locationList, setLocationList] = useState([
     {lat:28.6139,lon:77.2090,name:"Delhi",timezone:5.5},
     {lat:19.0760,lon:72.8777,name:"Mumbai",timezone:5.5},
     {lat:13.0827,lon:80.2707,name:"Chennai",timezone:5.5},
@@ -165,6 +165,11 @@ export default function Home() {
     {lat:21.1458,lon:79.0882,name:"Nagpur",timezone:5.5},
     {lat:18.5204,lon:73.8567,name:"Pune",timezone:5.5},
   ]);
+  // Custom location entry form state
+  const [customLocName, setCustomLocName] = useState("");
+  const [customLocLat,  setCustomLocLat]  = useState<number|"">(""); 
+  const [customLocLon,  setCustomLocLon]  = useState<number|"">(""); 
+  const [customLocTZ,   setCustomLocTZ]   = useState<number>(5.5);
 
   const set = <K extends keyof BirthData>(k:K, v:BirthData[K]) => setBirth(b=>({...b,[k]:v}));
 
@@ -1509,23 +1514,136 @@ export default function Home() {
     if (!chart) return <div className="status-err">Compute a chart first.</div>;
     const loc = decisional?.location;
     const DOMAINS = ["career","education","business","marriage","money","spiritual","assets","political","investment","children","medical","foreign"];
+
+    const addCustomLoc = () => {
+      if (customLocLat === "" || customLocLon === "") return;
+      const name = customLocName.trim() || `${Number(customLocLat).toFixed(4)},${Number(customLocLon).toFixed(4)}`;
+      const already = locationList.some(l => Math.abs(l.lat - Number(customLocLat)) < 0.001 && Math.abs(l.lon - Number(customLocLon)) < 0.001);
+      if (already) return;
+      setLocationList(prev => [...prev, {lat: Number(customLocLat), lon: Number(customLocLon), name, timezone: customLocTZ}]);
+      setCustomLocName(""); setCustomLocLat(""); setCustomLocLon("");
+    };
+
+    const removeLocation = (idx: number) => {
+      setLocationList(prev => prev.filter((_,i) => i !== idx));
+    };
+
+    const runScore = () => {
+      fetchDecisional("location", {locations: locationList});
+    };
+
     return (
       <div>
-        {!loc?(
-          <div className="card" style={{textAlign:"center",padding:32}}>
-            <div style={{fontSize:13,color:"var(--text2)",marginBottom:8}}>Score 8 major Indian cities for this native across 12 life domains using Vastu directional analysis.</div>
-            <div style={{fontSize:11,color:"var(--text3)",marginBottom:16}}>Cities: Delhi, Mumbai, Chennai, Bengaluru, Kolkata, Hyderabad, Nagpur, Pune</div>
-            <button className="compute-btn" style={{width:"auto",padding:"10px 28px"}} onClick={()=>fetchDecisional("location",{locations:locationList})} disabled={decisionalLoading}>{decisionalLoading?"⏳ Computing…":"📍 Score All Locations"}</button>
+        {/* ── Location Manager ── */}
+        <div className="card">
+          <div className="card-title">📍 Location List — Edit Before Scoring</div>
+          <p style={{fontSize:11,color:"var(--text2)",marginBottom:12,lineHeight:1.6}}>
+            Add any city or custom lat/lon below. Remove presets you don't need. Then click <strong style={{color:"var(--gold)"}}>Score All Locations</strong>.
+          </p>
+
+          {/* Existing locations */}
+          <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:14}}>
+            {locationList.map((l,i) => (
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"var(--deep)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px"}}>
+                <span style={{flex:1,fontSize:12,color:"var(--gold2)",fontWeight:600}}>{l.name}</span>
+                <span style={{fontSize:10,fontFamily:"monospace",color:"var(--text3)",minWidth:160}}>
+                  {l.lat.toFixed(4)}°N &nbsp; {l.lon.toFixed(4)}°E &nbsp; TZ {l.timezone}
+                </span>
+                <button
+                  onClick={() => removeLocation(i)}
+                  style={{background:"rgba(232,96,96,0.15)",border:"1px solid rgba(232,96,96,0.4)",color:"var(--crimson2)",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",flexShrink:0}}
+                  title="Remove this location">
+                  ✕
+                </button>
+              </div>
+            ))}
           </div>
-        ):(
+
+          {/* Add custom location */}
+          <div style={{background:"rgba(99,112,241,0.07)",border:"1px solid rgba(99,112,241,0.25)",borderRadius:8,padding:12,marginBottom:12}}>
+            <div style={{fontSize:10,color:"var(--sapphire2)",fontFamily:"monospace",marginBottom:8,fontWeight:700}}>＋ ADD CUSTOM LOCATION</div>
+            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr auto",gap:8,alignItems:"end"}}>
+              <div>
+                <label style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",display:"block",marginBottom:3}}>PLACE NAME</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Singapore, London, My Farm…"
+                  value={customLocName}
+                  onChange={e => setCustomLocName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && addCustomLoc()}
+                />
+              </div>
+              <div>
+                <label style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",display:"block",marginBottom:3}}>LATITUDE</label>
+                <input
+                  className="form-input"
+                  type="number" step="0.0001" min={-90} max={90}
+                  placeholder="e.g. 1.3521"
+                  value={customLocLat}
+                  onChange={e => setCustomLocLat(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",display:"block",marginBottom:3}}>LONGITUDE</label>
+                <input
+                  className="form-input"
+                  type="number" step="0.0001" min={-180} max={180}
+                  placeholder="e.g. 103.8198"
+                  value={customLocLon}
+                  onChange={e => setCustomLocLon(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                />
+              </div>
+              <div>
+                <label style={{fontSize:9,color:"var(--text3)",fontFamily:"monospace",display:"block",marginBottom:3}}>TIMEZONE</label>
+                <input
+                  className="form-input"
+                  type="number" step="0.5" min={-12} max={14}
+                  placeholder="5.5"
+                  value={customLocTZ}
+                  onChange={e => setCustomLocTZ(parseFloat(e.target.value)||5.5)}
+                />
+              </div>
+              <button
+                onClick={addCustomLoc}
+                disabled={customLocLat === "" || customLocLon === ""}
+                style={{background:"rgba(99,112,241,0.2)",border:"1px solid rgba(99,112,241,0.5)",color:"#8197f8",borderRadius:6,padding:"8px 14px",fontSize:12,cursor:"pointer",fontWeight:700,whiteSpace:"nowrap",height:36,alignSelf:"end"}}
+                title="Add this location to the list">
+                ＋ Add
+              </button>
+            </div>
+            <p style={{fontSize:10,color:"var(--text3)",marginTop:6,fontStyle:"italic"}}>
+              Tip: Use positive values for N/E, negative for S/W. Timezone = UTC offset (IST = 5.5).
+            </p>
+          </div>
+
+          {/* Score button */}
+          <button
+            className="compute-btn"
+            style={{width:"auto",padding:"10px 28px"}}
+            onClick={runScore}
+            disabled={decisionalLoading || locationList.length === 0}>
+            {decisionalLoading ? "⏳ Computing…" : `📍 Score ${locationList.length} Location${locationList.length !== 1 ? "s" : ""}`}
+          </button>
+          {loc && (
+            <button
+              onClick={runScore}
+              disabled={decisionalLoading}
+              style={{marginLeft:10,background:"rgba(200,150,42,0.12)",border:"1px solid var(--gold)",color:"var(--gold2)",borderRadius:8,padding:"10px 20px",fontSize:12,cursor:"pointer"}}>
+              ↻ Re-score with current list
+            </button>
+          )}
+        </div>
+
+        {/* ── Results ── */}
+        {loc && (
           <div>
             <div className="card" style={{background:"rgba(58,184,122,0.05)",border:"1px solid var(--jade)"}}>
-              <div className="card-title">Best City Overall</div>
+              <div className="card-title">Best Location Overall</div>
               <div style={{fontSize:28,fontWeight:700,color:"var(--jade2)"}}>{loc.bestCity}</div>
               <div style={{fontSize:11,color:"var(--text3)",marginTop:4}}>Native birthplace: {loc.nativeCity}</div>
             </div>
             <div className="card">
-              <div className="card-title">Domain→Best City Matrix</div>
+              <div className="card-title">Domain → Best Location Matrix</div>
               <div className="grid-3" style={{gap:6}}>
                 {DOMAINS.map(d=>(
                   <div key={d} style={{background:"var(--deep)",border:"1px solid var(--border)",borderRadius:5,padding:"6px 10px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -1536,10 +1654,10 @@ export default function Home() {
               </div>
             </div>
             <div className="card">
-              <div className="card-title">City Scores — Overall + All Domains</div>
+              <div className="card-title">Location Scores — Overall + All Domains</div>
               <div className="scroll-x">
                 <table className="data-table">
-                  <thead><tr><th>City</th><th>Dir</th><th>Overall</th>{DOMAINS.map(d=><th key={d} style={{fontSize:9}}>{d.slice(0,5)}</th>)}<th>Best For</th></tr></thead>
+                  <thead><tr><th>Location</th><th>Dir</th><th>Overall</th>{DOMAINS.map(d=><th key={d} style={{fontSize:9}}>{d.slice(0,5)}</th>)}<th>Best For</th></tr></thead>
                   <tbody>
                     {(loc.scores||[]).map((s:any,i:number)=>(
                       <tr key={i} style={{background:i===0?"rgba(58,184,122,0.07)":""}}>
@@ -1867,6 +1985,3 @@ export default function Home() {
   );
 
 }
-
-}
- de3a759 (Update UEDP engine)
