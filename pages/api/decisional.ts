@@ -98,10 +98,18 @@ function correctedTropLon(planet: string, jd: number): { lon: number; speed: num
   const sunL  = norm(280.46646 + 36000.76983 * T + sunC);
   const sunR  = 1.000001018 * (1 - 0.01671123 * Math.cos(sunM * D2R) - 0.00014 * Math.cos(2 * sunM * D2R));
 
+  // Vector subtraction geocentric conversion — works for ALL planets (inner and outer)
+  // The atan2(R*sin, sunR-R*cos) formula fails for outer planets where R >> sunR
+  const earthH = norm(sunL + 180);
+  const eRad   = earthH * D2R;
   function geocentric(helioLon: number, R: number): { lon: number; retro: boolean } {
-    const rel = norm(helioLon - sunL);
-    const geo = norm(sunL + Math.atan2(R * Math.sin(rel * D2R), sunR - R * Math.cos(rel * D2R)) * R2D);
-    const retro = rel > 180;
+    const hRad = helioLon * D2R;
+    const gx = R * Math.cos(hRad) - sunR * Math.cos(eRad);
+    const gy = R * Math.sin(hRad) - sunR * Math.sin(eRad);
+    const geo = norm(Math.atan2(gy, gx) * R2D);
+    // Retrograde when near opposition (between quadratures from earth's perspective)
+    const relToEarth = norm(helioLon - earthH);
+    const retro = relToEarth > 90 && relToEarth < 270;
     return { lon: geo, retro };
   }
 
@@ -127,7 +135,7 @@ function correctedTropLon(planet: string, jd: number): { lon: number; speed: num
   // ── MARS ───────────────────────────────────────────────────────────────
   if (planet === "Mars") {
     const L0   = norm(355.433275 + 19141.6964746 * T + 0.00031097 * T * T);
-    const peri = 286.4967 + 1.0675 * T;  // perihelion precesses
+    const peri = norm(336.04084 + 1.84102 * T);  // correct Meeus AA2 Table 33.a perihelion
     const M    = norm(L0 - peri);
     const Mr   = M * D2R;
     const C    = (10.6912 - 0.0838 * T) * Math.sin(Mr)

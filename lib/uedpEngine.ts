@@ -588,7 +588,7 @@ function planetTropLon(planet: string, jd: number): {lon:number;speed:number;ret
   // ── VENUS (Meeus Ch.33 — VSOP87 truncated, accuracy ~0.5°) ─────
   if (planet === "Venus") {
     const L0 = norm360(181.979801 + 58519.2130302*T + 0.00031014*T*T);
-    const M  = norm360(L0 - (131.563703 + 0.0048746*T));
+    const M  = norm360(L0 - (131.563703 + 1.40268*T)); // precessing perihelion ✓
     const Mrad = M*D2R;
     const C = (0.7758 - 0.0046*T)*Math.sin(Mrad)
             + 0.0033*Math.sin(2*Mrad);
@@ -602,6 +602,7 @@ function planetTropLon(planet: string, jd: number): {lon:number;speed:number;ret
     const sunM = norm360(357.52911 + 35999.05029*T);
     const sunL = norm360(280.46646 + 36000.76983*T + 2*1.9146*Math.sin(sunM*D2R));
     const sunR = 1.000001;
+    // Venus is inner planet — atan2 formula is fine for R<1
     const relLon = norm360(corrHlio - sunL);
     const geoLon = norm360(sunL + Math.atan2(R*Math.sin(relLon*D2R), sunR - R*Math.cos(relLon*D2R))*R2D);
     const speed  = 1.6021;
@@ -609,58 +610,63 @@ function planetTropLon(planet: string, jd: number): {lon:number;speed:number;ret
     return {lon: geoLon, speed: retro?-speed:speed, retro};
   }
 
-  // ── MARS (Meeus Ch.33 truncated, accuracy ~0.5°) ──────────────
+  // ── MARS — fixed perihelion + vector geocentric conversion ─────────────
   if (planet === "Mars") {
+    const sunM2 = norm360(357.52911 + 35999.05029*T);
+    const sunCst = (1.914602-0.004817*T)*Math.sin(sunM2*D2R)+(0.019993-0.000101*T)*Math.sin(2*sunM2*D2R);
+    const sunTrop2 = norm360(280.46646+36000.76983*T+0.0003032*T*T+sunCst);
+    const earthR2 = 1.000140-0.016709*Math.cos(sunM2*D2R)-0.000142*Math.cos(2*sunM2*D2R);
+    const earthH2 = norm360(sunTrop2+180);
     const L0   = norm360(355.433275 + 19141.6964746*T + 0.00031097*T*T);
-    const M    = norm360(L0 - (286.4967 + 0.0*T)); // perihelion ≈ fixed
+    const peri = norm360(336.04084  +      1.84102*T); // precessing perihelion ✓
+    const M    = norm360(L0 - peri);
     const Mrad = M*D2R;
-    const C    = (10.6912 - 0.0838*T)*Math.sin(Mrad)
-               + (0.6228 - 0.0068*T)*Math.sin(2*Mrad)
-               + 0.0503*Math.sin(3*Mrad);
+    const C    = (10.69121 - 0.0838*T)*Math.sin(Mrad)
+               + (0.62293  - 0.0068*T)*Math.sin(2*Mrad)
+               + 0.0503*Math.sin(3*Mrad)+0.0005*Math.sin(4*Mrad);
     const helioLon = norm360(L0 + C);
-    const R   = 1.523679 * (1 - 0.0934*Math.cos(Mrad));
-    const sunM = norm360(357.52911 + 35999.05029*T);
-    const sunL = norm360(280.46646 + 36000.76983*T + 2*1.9146*Math.sin(sunM*D2R));
-    const sunR = 1.000001;
-    const relLon = norm360(helioLon - sunL);
-    const geoLon = norm360(sunL + Math.atan2(R*Math.sin(relLon*D2R), sunR - R*Math.cos(relLon*D2R))*R2D);
-    const retro = norm360(helioLon - sunL) > 180 && norm360(helioLon - sunL) < 360;
+    const R   = 1.523679 * (1 - 0.09341233*Math.cos(Mrad));
+    const hRad=helioLon*D2R,eRad=earthH2*D2R;
+    const geoLon=norm360(Math.atan2(R*Math.sin(hRad)-earthR2*Math.sin(eRad),R*Math.cos(hRad)-earthR2*Math.cos(eRad))*R2D);
+    const retro = norm360(helioLon-earthH2)>90 && norm360(helioLon-earthH2)<270;
     return {lon: geoLon, speed: retro?-0.524:0.524, retro};
   }
 
-  // ── JUPITER (Meeus Ch.33 truncated, accuracy ~0.5°) ───────────
+  // ── JUPITER — precessing perihelion + vector geocentric ────────────────
   if (planet === "Jupiter") {
+    const sunMj=norm360(357.52911+35999.05029*T);
+    const sunCj=(1.914602-0.004817*T)*Math.sin(sunMj*D2R)+(0.019993-0.000101*T)*Math.sin(2*sunMj*D2R);
+    const sunTj=norm360(280.46646+36000.76983*T+0.0003032*T*T+sunCj);
+    const eRj=1.000140-0.016709*Math.cos(sunMj*D2R); const eHj=norm360(sunTj+180);
     const L0   = norm360(34.351484 + 3036.3027889*T + 0.00022374*T*T);
-    const M    = norm360(L0 - (14.3312 + 0.0*T));
+    const peri = norm360(14.27495  +     1.64702*T);
+    const M    = norm360(L0 - peri);
     const Mrad = M*D2R;
-    const C    = (5.5549 - 0.0071*T)*Math.sin(Mrad)
-               + (0.1683 - 0.0027*T)*Math.sin(2*Mrad);
+    const C    = (5.55549 - 0.0071*T)*Math.sin(Mrad)+(0.16828 - 0.0027*T)*Math.sin(2*Mrad)+0.0062*Math.sin(3*Mrad);
     const helioLon = norm360(L0 + C);
-    const R   = 5.202561 * (1 - 0.0489*Math.cos(Mrad));
-    const sunM = norm360(357.52911 + 35999.05029*T);
-    const sunL = norm360(280.46646 + 36000.76983*T + 2*1.9146*Math.sin(sunM*D2R));
-    const sunR = 1.000001;
-    const relLon = norm360(helioLon - sunL);
-    const geoLon = norm360(sunL + Math.atan2(R*Math.sin(relLon*D2R), sunR - R*Math.cos(relLon*D2R))*R2D);
-    const retro = norm360(helioLon - sunL) > 180 && norm360(helioLon - sunL) < 360;
+    const R   = 5.202561 * (1 - 0.04849485*Math.cos(Mrad));
+    const hRj=helioLon*D2R,eRad2=eHj*D2R;
+    const geoLon=norm360(Math.atan2(R*Math.sin(hRj)-eRj*Math.sin(eRad2),R*Math.cos(hRj)-eRj*Math.cos(eRad2))*R2D);
+    const retro=norm360(helioLon-eHj)>90&&norm360(helioLon-eHj)<270;
     return {lon: geoLon, speed: retro?-0.083:0.083, retro};
   }
 
-  // ── SATURN (Meeus Ch.33 truncated, accuracy ~0.5°) ────────────
+  // ── SATURN — precessing perihelion + vector geocentric ─────────────────
   if (planet === "Saturn") {
+    const sunMs=norm360(357.52911+35999.05029*T);
+    const sunCs=(1.914602-0.004817*T)*Math.sin(sunMs*D2R)+(0.019993-0.000101*T)*Math.sin(2*sunMs*D2R);
+    const sunTs=norm360(280.46646+36000.76983*T+0.0003032*T*T+sunCs);
+    const eRs=1.000140-0.016709*Math.cos(sunMs*D2R); const eHs=norm360(sunTs+180);
     const L0   = norm360(50.077444 + 1223.5110686*T + 0.00051908*T*T);
-    const M    = norm360(L0 - (93.0568 + 0.0*T));
+    const peri = norm360(93.05723  +     1.19637*T);
+    const M    = norm360(L0 - peri);
     const Mrad = M*D2R;
-    const C    = (6.3585 - 0.0040*T)*Math.sin(Mrad)
-               + (0.2204 - 0.0028*T)*Math.sin(2*Mrad);
+    const C    = (6.35650 - 0.0040*T)*Math.sin(Mrad)+(0.24094 - 0.0028*T)*Math.sin(2*Mrad)+0.0140*Math.sin(3*Mrad);
     const helioLon = norm360(L0 + C);
-    const R   = 9.554747 * (1 - 0.0557*Math.cos(Mrad));
-    const sunM = norm360(357.52911 + 35999.05029*T);
-    const sunL = norm360(280.46646 + 36000.76983*T + 2*1.9146*Math.sin(sunM*D2R));
-    const sunR = 1.000001;
-    const relLon = norm360(helioLon - sunL);
-    const geoLon = norm360(sunL + Math.atan2(R*Math.sin(relLon*D2R), sunR - R*Math.cos(relLon*D2R))*R2D);
-    const retro = norm360(helioLon - sunL) > 180 && norm360(helioLon - sunL) < 360;
+    const R   = 9.554747 * (1 - 0.05550825*Math.cos(Mrad));
+    const hRs=helioLon*D2R,eRad3=eHs*D2R;
+    const geoLon=norm360(Math.atan2(R*Math.sin(hRs)-eRs*Math.sin(eRad3),R*Math.cos(hRs)-eRs*Math.cos(eRad3))*R2D);
+    const retro=norm360(helioLon-eHs)>90&&norm360(helioLon-eHs)<270;
     return {lon: geoLon, speed: retro?-0.033:0.033, retro};
   }
 
@@ -2299,21 +2305,22 @@ export function generateFullChart(birth: BirthData, apiPos?: ApiPositions): Char
   const rawPosAll: Record<string,{lon:number;speed:number;retro:boolean}> = {};
   const ephemerisSource = apiPos?.source || "vsop87";
 
+  // Always compute all planets from engine first (Sun/Moon/Mercury/Rahu/Ketu are always accurate)
+  const pNames = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"];
+  for (const pn of pNames) {
+    const {lon: tropLon, speed, retro} = planetTropLon(pn, jd);
+    rawPosAll[pn] = {lon: toSidereal(tropLon, ayanamsa), speed, retro};
+  }
+  const rahuLon = toSidereal(getRahuLon(jd), ayanamsa);
+  rawPosAll.Rahu = {lon: rahuLon, speed: -0.053, retro: true};
+  rawPosAll.Ketu = {lon: (rahuLon + 180) % 360, speed: -0.053, retro: true};
+
   if (apiPos?.siderealLongitudes) {
-    // Use API positions — bypass all local computation for planet longitudes
+    // Override with corrected positions where provided (Venus/Mars/Jupiter/Saturn from decisional)
+    // Sun/Moon/Mercury/Rahu/Ketu remain from engine computation above — they are already accurate
     for (const [pn, lon] of Object.entries(apiPos.siderealLongitudes)) {
-      rawPosAll[pn] = {lon, speed:0, retro: apiPos.retrograde?.[pn] ?? false};
+      rawPosAll[pn] = {lon, speed: rawPosAll[pn]?.speed ?? 0, retro: apiPos.retrograde?.[pn] ?? rawPosAll[pn]?.retro ?? false};
     }
-  } else {
-    // VSOP87 truncated (local fallback) — accurate for outer planets, ~0.5-1° for inner
-    const pNames = ["Sun","Moon","Mars","Mercury","Jupiter","Venus","Saturn"];
-    for (const pn of pNames) {
-      const {lon: tropLon, speed, retro} = planetTropLon(pn, jd);
-      rawPosAll[pn] = {lon: toSidereal(tropLon, ayanamsa), speed, retro};
-    }
-    const rahuLon = toSidereal(getRahuLon(jd), ayanamsa);
-    rawPosAll.Rahu = {lon: rahuLon, speed: -0.053, retro: true};
-    rawPosAll.Ketu = {lon: (rahuLon + 180) % 360, speed: -0.053, retro: true};
   }
 
   // ── ASCENDANT ──────────────────────────────────────────────────────
